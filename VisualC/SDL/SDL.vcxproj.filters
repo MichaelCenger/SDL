@@ -495,9 +495,6 @@
     <ClInclude Include="..\..\src\dynapi\SDL_dynapi_unsupported.h">
       <Filter>dynapi</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\events\SDL_categories.h">
-      <Filter>events</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\events\SDL_clipboardevents_c.h">
       <Filter>events</Filter>
     </ClInclude>
@@ -908,6 +905,9 @@
     <ClInclude Include="..\..\src\video\offscreen\SDL_offscreenwindow.h">
       <Filter>video\offscreen</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\SDL3\SDL_storage.h" />
+    <ClInclude Include="..\..\include\SDL3\SDL_time.h" />
+    <ClInclude Include="..\..\src\events\SDL_categories_c.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\audio\wasapi\SDL_wasapi.c" />
@@ -1562,6 +1562,9 @@
     <ClCompile Include="..\..\src\video\offscreen\SDL_offscreenwindow.c">
       <Filter>video\offscreen</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\storage\generic\SDL_genericstorage.c" />
+    <ClCompile Include="..\..\src\storage\steam\SDL_steamstorage.c" />
+    <ClCompile Include="..\..\src\storage\SDL_storage.c" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\..\src\core\windows\version.rc" />
