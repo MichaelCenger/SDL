@@ -3,7 +3,7 @@ projectshortname = SDL
 incsubdir = include/SDL3
 wikisubdir =
 readmesubdir = docs
-apiprefixregex = (SDL_|SDLK_)
+apiprefixregex = (SDL_|SDLK_|[US]int\d+)
 mainincludefname = SDL3/SDL.h
 versionfname = include/SDL3/SDL_version.h
 versionmajorregex = \A\#define\s+SDL_MAJOR_VERSION\s+(\d+)\Z
@@ -14,7 +14,7 @@ projecturl = https://libsdl.org/
 wikiurl = https://wiki.libsdl.org
 bugreporturl = https://github.com/libsdl-org/sdlwiki/issues/new
 warn_about_missing = 0
-wikipreamble = (This is the documentation for SDL3, which is under heavy development and the API is changing! [SDL2](https://wiki.libsdl.org/SDL2/) is the current stable version!)
+wikipreamble = (This is the documentation for SDL3, which is the current stable version. [SDL2](https://wiki.libsdl.org/SDL2/) was the previous version!)
 wikiheaderfiletext = Defined in [<SDL3/%fname%>](https://github.com/libsdl-org/SDL/blob/main/include/SDL3/%fname%)
 manpageheaderfiletext = Defined in SDL3/%fname%
 

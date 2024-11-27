@@ -23,8 +23,10 @@
  * # CategoryStdinc
  *
  * This is a general header that includes C language support. It implements a
- * subset of the C runtime: these should all behave the same way as their C
- * runtime equivalents, but with an SDL_ prefix.
+ * subset of the C runtime APIs, but with an `SDL_` prefix. For most common
+ * use cases, these should behave the same way as their C runtime equivalents,
+ * but they may differ in how or whether they handle certain edge cases. When
+ * in doubt, consult the documentation for details.
  */
 
 #ifndef SDL_stdinc_h_
@@ -32,13 +34,28 @@
 
 #include <SDL3/SDL_platform_defines.h>
 
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
-#include <inttypes.h>
-#endif
 #include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
 #include <wchar.h>
+
+#if (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L) || \
+    defined(SDL_INCLUDE_INTTYPES_H)
+#include <inttypes.h>
+#endif
+
+#ifndef __cplusplus
+#if (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L) || \
+    (defined(_MSC_VER) && (_MSC_VER >= 1910 /* Visual Studio 2017 */)) || \
+    defined(SDL_INCLUDE_STDBOOL_H)
+#include <stdbool.h>
+#elif !defined(__bool_true_false_are_defined) && !defined(bool)
+#define bool  unsigned char
+#define false 0
+#define true  1
+#define __bool_true_false_are_defined 1
+#endif
+#endif /* !__cplusplus */
 
 #ifndef SDL_DISABLE_ALLOCA
 # ifndef alloca
@@ -77,6 +94,25 @@ void *alloca(size_t);
 # define SDL_SIZE_MAX ((size_t) -1)
 #endif
 
+#ifndef SDL_COMPILE_TIME_ASSERT
+#if defined(__cplusplus)
+/* Keep C++ case alone: Some versions of gcc will define __STDC_VERSION__ even when compiling in C++ mode. */
+#if (__cplusplus >= 201103L)
+#define SDL_COMPILE_TIME_ASSERT(name, x)  static_assert(x, #x)
+#endif
+#elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 202311L)
+#define SDL_COMPILE_TIME_ASSERT(name, x)  static_assert(x, #x)
+#elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+#define SDL_COMPILE_TIME_ASSERT(name, x) _Static_assert(x, #x)
+#endif
+#endif /* !SDL_COMPILE_TIME_ASSERT */
+
+#ifndef SDL_COMPILE_TIME_ASSERT
+/* universal, but may trigger -Wunused-local-typedefs */
+#define SDL_COMPILE_TIME_ASSERT(name, x)               \
+       typedef int SDL_compile_time_assert_ ## name[(x) * 2 - 1]
+#endif
+
 /**
  * Check if the compiler supports a given builtin.
  * Supported by virtually all clang versions and recent gcc. Use this
@@ -95,7 +131,7 @@ void *alloca(size_t);
  * inside of `sizeof`, so there are no side-effects here, as expressions do
  * not actually run any code in these cases.
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  */
 #define SDL_arraysize(array) (sizeof(array)/sizeof(array[0]))
 
@@ -108,7 +144,7 @@ void *alloca(size_t);
  * #define LOG_ERROR(X) OutputDebugString(SDL_STRINGIFY_ARG(__FUNCTION__) ": " X "\n")`
  * ```
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  */
 #define SDL_STRINGIFY_ARG(arg)  #arg
 
@@ -119,7 +155,76 @@ void *alloca(size_t);
  *  -Wold-style-cast of GCC (and -Werror=old-style-cast in GCC 4.2 and above).
  */
 /* @{ */
-#ifdef __cplusplus
+
+#ifdef SDL_WIKI_DOCUMENTATION_SECTION
+
+/**
+ * Handle a Reinterpret Cast properly whether using C or C++.
+ *
+ * If compiled as C++, this macro offers a proper C++ reinterpret_cast<>.
+ *
+ * If compiled as C, this macro does a normal C-style cast.
+ *
+ * This is helpful to avoid compiler warnings in C++.
+ *
+ * \param type the type to cast the expression to.
+ * \param expression the expression to cast to a different type.
+ * \returns `expression`, cast to `type`.
+ *
+ * \threadsafety It is safe to call this macro from any thread.
+ *
+ * \since This macro is available since SDL 3.1.3.
+ *
+ * \sa SDL_static_cast
+ * \sa SDL_const_cast
+ */
+#define SDL_reinterpret_cast(type, expression) reinterpret_cast<type>(expression)  /* or `((type)(expression))` in C */
+
+/**
+ * Handle a Static Cast properly whether using C or C++.
+ *
+ * If compiled as C++, this macro offers a proper C++ static_cast<>.
+ *
+ * If compiled as C, this macro does a normal C-style cast.
+ *
+ * This is helpful to avoid compiler warnings in C++.
+ *
+ * \param type the type to cast the expression to.
+ * \param expression the expression to cast to a different type.
+ * \returns `expression`, cast to `type`.
+ *
+ * \threadsafety It is safe to call this macro from any thread.
+ *
+ * \since This macro is available since SDL 3.1.3.
+ *
+ * \sa SDL_reinterpret_cast
+ * \sa SDL_const_cast
+ */
+#define SDL_static_cast(type, expression) static_cast<type>(expression)  /* or `((type)(expression))` in C */
+
+/**
+ * Handle a Const Cast properly whether using C or C++.
+ *
+ * If compiled as C++, this macro offers a proper C++ const_cast<>.
+ *
+ * If compiled as C, this macro does a normal C-style cast.
+ *
+ * This is helpful to avoid compiler warnings in C++.
+ *
+ * \param type the type to cast the expression to.
+ * \param expression the expression to cast to a different type.
+ * \returns `expression`, cast to `type`.
+ *
+ * \threadsafety It is safe to call this macro from any thread.
+ *
+ * \since This macro is available since SDL 3.1.3.
+ *
+ * \sa SDL_reinterpret_cast
+ * \sa SDL_static_cast
+ */
+#define SDL_const_cast(type, expression) const_cast<type>(expression)  /* or `((type)(expression))` in C */
+
+#elif defined(__cplusplus)
 #define SDL_reinterpret_cast(type, expression) reinterpret_cast<type>(expression)
 #define SDL_static_cast(type, expression) static_cast<type>(expression)
 #define SDL_const_cast(type, expression) const_cast<type>(expression)
@@ -128,9 +233,23 @@ void *alloca(size_t);
 #define SDL_static_cast(type, expression) ((type)(expression))
 #define SDL_const_cast(type, expression) ((type)(expression))
 #endif
+
 /* @} *//* Cast operators */
 
-/* Define a four character code as a Uint32 */
+/**
+ * Define a four character code as a Uint32.
+ *
+ * \param A the first ASCII character.
+ * \param B the second ASCII character.
+ * \param C the third ASCII character.
+ * \param D the fourth ASCII character.
+ * \returns the four characters converted into a Uint32, one character
+ *          per-byte.
+ *
+ * \threadsafety It is safe to call this macro from any thread.
+ *
+ * \since This macro is available since SDL 3.1.3.
+ */
 #define SDL_FOURCC(A, B, C, D) \
     ((SDL_static_cast(Uint32, SDL_static_cast(Uint8, (A))) << 0) | \
      (SDL_static_cast(Uint32, SDL_static_cast(Uint8, (B))) << 8) | \
@@ -146,7 +265,7 @@ void *alloca(size_t);
  * 0xFFFFFFFF is overflowing a 32-bit value. Use `SDL_SINT64_C(0xFFFFFFFF1)`
  * instead of `0xFFFFFFFF1` by itself.
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  *
  * \sa SDL_UINT64_C
  */
@@ -159,25 +278,39 @@ void *alloca(size_t);
  * 0xFFFFFFFF is overflowing a 32-bit value. Use `SDL_UINT64_C(0xFFFFFFFF1)`
  * instead of `0xFFFFFFFF1` by itself.
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  *
  * \sa SDL_SINT64_C
  */
 #define SDL_UINT64_C(c)  c ## ULL /* or whatever the current compiler uses. */
 
-#elif defined(INT64_C)
+#else /* !SDL_WIKI_DOCUMENTATION_SECTION */
+
+#ifndef SDL_SINT64_C
+#if defined(INT64_C)
 #define SDL_SINT64_C(c)  INT64_C(c)
-#define SDL_UINT64_C(c)  UINT64_C(c)
 #elif defined(_MSC_VER)
 #define SDL_SINT64_C(c)  c ## i64
-#define SDL_UINT64_C(c)  c ## ui64
 #elif defined(__LP64__) || defined(_LP64)
 #define SDL_SINT64_C(c)  c ## L
-#define SDL_UINT64_C(c)  c ## UL
 #else
 #define SDL_SINT64_C(c)  c ## LL
+#endif
+#endif /* !SDL_SINT64_C */
+
+#ifndef SDL_UINT64_C
+#if defined(UINT64_C)
+#define SDL_UINT64_C(c)  UINT64_C(c)
+#elif defined(_MSC_VER)
+#define SDL_UINT64_C(c)  c ## ui64
+#elif defined(__LP64__) || defined(_LP64)
+#define SDL_UINT64_C(c)  c ## UL
+#else
 #define SDL_UINT64_C(c)  c ## ULL
 #endif
+#endif /* !SDL_UINT64_C */
+
+#endif /* !SDL_WIKI_DOCUMENTATION_SECTION */
 
 /**
  *  \name Basic data types
@@ -185,37 +318,9 @@ void *alloca(size_t);
 /* @{ */
 
 /**
- * A boolean false.
- *
- * \since This macro is available since SDL 3.0.0.
- *
- * \sa SDL_bool
- */
-#define SDL_FALSE 0
-
-/**
- * A boolean true.
- *
- * \since This macro is available since SDL 3.0.0.
- *
- * \sa SDL_bool
- */
-#define SDL_TRUE 1
-
-/**
- * A boolean type: true or false.
- *
- * \since This datatype is available since SDL 3.0.0.
- *
- * \sa SDL_TRUE
- * \sa SDL_FALSE
- */
-typedef int SDL_bool;
-
-/**
  * A signed 8-bit integer type.
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  */
 typedef int8_t Sint8;
 #define SDL_MAX_SINT8   ((Sint8)0x7F)           /* 127 */
@@ -224,7 +329,7 @@ typedef int8_t Sint8;
 /**
  * An unsigned 8-bit integer type.
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  */
 typedef uint8_t Uint8;
 #define SDL_MAX_UINT8   ((Uint8)0xFF)           /* 255 */
@@ -233,7 +338,7 @@ typedef uint8_t Uint8;
 /**
  * A signed 16-bit integer type.
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  */
 typedef int16_t Sint16;
 #define SDL_MAX_SINT16  ((Sint16)0x7FFF)        /* 32767 */
@@ -242,7 +347,7 @@ typedef int16_t Sint16;
 /**
  * An unsigned 16-bit integer type.
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  */
 typedef uint16_t Uint16;
 #define SDL_MAX_UINT16  ((Uint16)0xFFFF)        /* 65535 */
@@ -251,7 +356,7 @@ typedef uint16_t Uint16;
 /**
  * A signed 32-bit integer type.
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  */
 typedef int32_t Sint32;
 #define SDL_MAX_SINT32  ((Sint32)0x7FFFFFFF)    /* 2147483647 */
@@ -260,7 +365,7 @@ typedef int32_t Sint32;
 /**
  * An unsigned 32-bit integer type.
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  */
 typedef uint32_t Uint32;
 #define SDL_MAX_UINT32  ((Uint32)0xFFFFFFFFu)   /* 4294967295 */
@@ -269,7 +374,7 @@ typedef uint32_t Uint32;
 /**
  * A signed 64-bit integer type.
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  *
  * \sa SDL_SINT64_C
  */
@@ -280,7 +385,7 @@ typedef int64_t Sint64;
 /**
  * An unsigned 64-bit integer type.
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  *
  * \sa SDL_UINT64_C
  */
@@ -296,7 +401,7 @@ typedef uint64_t Uint64;
  * and SDL_SECONDS_TO_NS(), and between Windows FILETIME values with
  * SDL_TimeToWindows() and SDL_TimeFromWindows().
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  *
  * \sa SDL_MAX_SINT64
  * \sa SDL_MIN_SINT64
@@ -322,7 +427,7 @@ typedef Sint64 SDL_Time;
  * Equals by default to platform-defined `FLT_EPSILON`, or
  * `1.1920928955078125e-07F` if that's not available.
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  */
 #define SDL_FLT_EPSILON 1.1920928955078125e-07F /* 0x0.000002p0 */
 #endif
@@ -330,32 +435,32 @@ typedef Sint64 SDL_Time;
 /* @} *//* Floating-point constants */
 
 /* Make sure we have macros for printing width-based integers.
- * <stdint.h> should define these but this is not true all platforms.
+ * <inttypes.h> should define these but this is not true all platforms.
  * (for example win32) */
 #ifndef SDL_PRIs64
-#if defined(SDL_PLATFORM_WIN32) || defined(SDL_PLATFORM_GDK)
+#if defined(SDL_PLATFORM_WINDOWS)
 #define SDL_PRIs64 "I64d"
-#elif defined(PRIs64)
-#define SDL_PRIs64 PRIs64
-#elif defined(__LP64__) && !defined(SDL_PLATFORM_APPLE)
+#elif defined(PRId64)
+#define SDL_PRIs64 PRId64
+#elif defined(__LP64__) && !defined(SDL_PLATFORM_APPLE) && !defined(__EMSCRIPTEN__)
 #define SDL_PRIs64 "ld"
 #else
 #define SDL_PRIs64 "lld"
 #endif
 #endif
 #ifndef SDL_PRIu64
-#if defined(SDL_PLATFORM_WIN32) || defined(SDL_PLATFORM_GDK)
+#if defined(SDL_PLATFORM_WINDOWS)
 #define SDL_PRIu64 "I64u"
 #elif defined(PRIu64)
 #define SDL_PRIu64 PRIu64
-#elif defined(__LP64__) && !defined(SDL_PLATFORM_APPLE)
+#elif defined(__LP64__) && !defined(SDL_PLATFORM_APPLE) && !defined(__EMSCRIPTEN__)
 #define SDL_PRIu64 "lu"
 #else
 #define SDL_PRIu64 "llu"
 #endif
 #endif
 #ifndef SDL_PRIx64
-#if defined(SDL_PLATFORM_WIN32) || defined(SDL_PLATFORM_GDK)
+#if defined(SDL_PLATFORM_WINDOWS)
 #define SDL_PRIx64 "I64x"
 #elif defined(PRIx64)
 #define SDL_PRIx64 PRIx64
@@ -366,7 +471,7 @@ typedef Sint64 SDL_Time;
 #endif
 #endif
 #ifndef SDL_PRIX64
-#if defined(SDL_PLATFORM_WIN32) || defined(SDL_PLATFORM_GDK)
+#if defined(SDL_PLATFORM_WINDOWS)
 #define SDL_PRIX64 "I64X"
 #elif defined(PRIX64)
 #define SDL_PRIX64 PRIX64
@@ -404,6 +509,25 @@ typedef Sint64 SDL_Time;
 #define SDL_PRIX32 "X"
 #endif
 #endif
+/* Specifically for the `long long` -- SDL-specific. */
+#ifdef SDL_PLATFORM_WINDOWS
+SDL_COMPILE_TIME_ASSERT(longlong_size64, sizeof(long long) == 8); /* using I64 for windows - make sure `long long` is 64 bits. */
+#define SDL_PRILL_PREFIX "I64"
+#else
+#define SDL_PRILL_PREFIX "ll"
+#endif
+#ifndef SDL_PRILLd
+#define SDL_PRILLd SDL_PRILL_PREFIX "d"
+#endif
+#ifndef SDL_PRILLu
+#define SDL_PRILLu SDL_PRILL_PREFIX "u"
+#endif
+#ifndef SDL_PRILLx
+#define SDL_PRILLx SDL_PRILL_PREFIX "x"
+#endif
+#ifndef SDL_PRILLX
+#define SDL_PRILLX SDL_PRILL_PREFIX "X"
+#endif
 
 /* Annotations to help code analysis tools */
 #ifdef SDL_DISABLE_ANALYZE_MACROS
@@ -420,7 +544,7 @@ typedef Sint64 SDL_Time;
 #define SDL_SCANF_VARARG_FUNC( fmtargnumber )
 #define SDL_SCANF_VARARG_FUNCV( fmtargnumber )
 #define SDL_WPRINTF_VARARG_FUNC( fmtargnumber )
-#define SDL_WSCANF_VARARG_FUNC( fmtargnumber )
+#define SDL_WPRINTF_VARARG_FUNCV( fmtargnumber )
 #else
 #if defined(_MSC_VER) && (_MSC_VER >= 1600) /* VS 2010 and above */
 #include <sal.h>
@@ -444,52 +568,43 @@ typedef Sint64 SDL_Time;
 #define SDL_PRINTF_FORMAT_STRING
 #define SDL_SCANF_FORMAT_STRING
 #endif
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 #define SDL_PRINTF_VARARG_FUNC( fmtargnumber ) __attribute__ (( format( __printf__, fmtargnumber, fmtargnumber+1 )))
 #define SDL_PRINTF_VARARG_FUNCV( fmtargnumber ) __attribute__(( format( __printf__, fmtargnumber, 0 )))
 #define SDL_SCANF_VARARG_FUNC( fmtargnumber ) __attribute__ (( format( __scanf__, fmtargnumber, fmtargnumber+1 )))
 #define SDL_SCANF_VARARG_FUNCV( fmtargnumber ) __attribute__(( format( __scanf__, fmtargnumber, 0 )))
 #define SDL_WPRINTF_VARARG_FUNC( fmtargnumber ) /* __attribute__ (( format( __wprintf__, fmtargnumber, fmtargnumber+1 ))) */
-#define SDL_WSCANF_VARARG_FUNC( fmtargnumber ) /* __attribute__ (( format( __wscanf__, fmtargnumber, fmtargnumber+1 ))) */
+#define SDL_WPRINTF_VARARG_FUNCV( fmtargnumber ) /* __attribute__ (( format( __wprintf__, fmtargnumber, 0 ))) */
 #else
 #define SDL_PRINTF_VARARG_FUNC( fmtargnumber )
 #define SDL_PRINTF_VARARG_FUNCV( fmtargnumber )
 #define SDL_SCANF_VARARG_FUNC( fmtargnumber )
 #define SDL_SCANF_VARARG_FUNCV( fmtargnumber )
 #define SDL_WPRINTF_VARARG_FUNC( fmtargnumber )
-#define SDL_WSCANF_VARARG_FUNC( fmtargnumber )
+#define SDL_WPRINTF_VARARG_FUNCV( fmtargnumber )
 #endif
 #endif /* SDL_DISABLE_ANALYZE_MACROS */
 
-#ifndef SDL_COMPILE_TIME_ASSERT
-#if defined(__cplusplus)
-/* Keep C++ case alone: Some versions of gcc will define __STDC_VERSION__ even when compiling in C++ mode. */
-#if (__cplusplus >= 201103L)
-#define SDL_COMPILE_TIME_ASSERT(name, x)  static_assert(x, #x)
-#endif
-#elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 202311L)
-#define SDL_COMPILE_TIME_ASSERT(name, x)  static_assert(x, #x)
-#elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
-#define SDL_COMPILE_TIME_ASSERT(name, x) _Static_assert(x, #x)
-#endif
-#endif /* !SDL_COMPILE_TIME_ASSERT */
-
-#ifndef SDL_COMPILE_TIME_ASSERT
-/* universal, but may trigger -Wunused-local-typedefs */
-#define SDL_COMPILE_TIME_ASSERT(name, x)               \
-       typedef int SDL_compile_time_assert_ ## name[(x) * 2 - 1]
-#endif
-
 /** \cond */
 #ifndef DOXYGEN_SHOULD_IGNORE_THIS
-SDL_COMPILE_TIME_ASSERT(uint8, sizeof(Uint8) == 1);
-SDL_COMPILE_TIME_ASSERT(sint8, sizeof(Sint8) == 1);
-SDL_COMPILE_TIME_ASSERT(uint16, sizeof(Uint16) == 2);
-SDL_COMPILE_TIME_ASSERT(sint16, sizeof(Sint16) == 2);
-SDL_COMPILE_TIME_ASSERT(uint32, sizeof(Uint32) == 4);
-SDL_COMPILE_TIME_ASSERT(sint32, sizeof(Sint32) == 4);
-SDL_COMPILE_TIME_ASSERT(uint64, sizeof(Uint64) == 8);
-SDL_COMPILE_TIME_ASSERT(sint64, sizeof(Sint64) == 8);
+SDL_COMPILE_TIME_ASSERT(bool_size, sizeof(bool) == 1);
+SDL_COMPILE_TIME_ASSERT(uint8_size, sizeof(Uint8) == 1);
+SDL_COMPILE_TIME_ASSERT(sint8_size, sizeof(Sint8) == 1);
+SDL_COMPILE_TIME_ASSERT(uint16_size, sizeof(Uint16) == 2);
+SDL_COMPILE_TIME_ASSERT(sint16_size, sizeof(Sint16) == 2);
+SDL_COMPILE_TIME_ASSERT(uint32_size, sizeof(Uint32) == 4);
+SDL_COMPILE_TIME_ASSERT(sint32_size, sizeof(Sint32) == 4);
+SDL_COMPILE_TIME_ASSERT(uint64_size, sizeof(Uint64) == 8);
+SDL_COMPILE_TIME_ASSERT(sint64_size, sizeof(Sint64) == 8);
+SDL_COMPILE_TIME_ASSERT(uint64_longlong, sizeof(Uint64) <= sizeof(unsigned long long));
+SDL_COMPILE_TIME_ASSERT(size_t_longlong, sizeof(size_t) <= sizeof(unsigned long long));
+typedef struct SDL_alignment_test
+{
+    Uint8 a;
+    void *b;
+} SDL_alignment_test;
+SDL_COMPILE_TIME_ASSERT(struct_alignment, sizeof(SDL_alignment_test) == (2 * sizeof(void *)));
+SDL_COMPILE_TIME_ASSERT(two_s_complement, (int)~(int)0 == (int)(-1));
 #endif /* DOXYGEN_SHOULD_IGNORE_THIS */
 /** \endcond */
 
@@ -519,6 +634,51 @@ SDL_COMPILE_TIME_ASSERT(enum, sizeof(SDL_DUMMY_ENUM) == sizeof(int));
 extern "C" {
 #endif
 
+/**
+ * A macro to initialize an SDL interface.
+ *
+ * This macro will initialize an SDL interface structure and should be called
+ * before you fill out the fields with your implementation.
+ *
+ * You can use it like this:
+ *
+ * ```c
+ * SDL_IOStreamInterface iface;
+ *
+ * SDL_INIT_INTERFACE(&iface);
+ *
+ * // Fill in the interface function pointers with your implementation
+ * iface.seek = ...
+ *
+ * stream = SDL_OpenIO(&iface, NULL);
+ * ```
+ *
+ * If you are using designated initializers, you can use the size of the
+ * interface as the version, e.g.
+ *
+ * ```c
+ * SDL_IOStreamInterface iface = {
+ *     .version = sizeof(iface),
+ *     .seek = ...
+ * };
+ * stream = SDL_OpenIO(&iface, NULL);
+ * ```
+ *
+ * \threadsafety It is safe to call this macro from any thread.
+ *
+ * \since This macro is available since SDL 3.1.3.
+ *
+ * \sa SDL_IOStreamInterface
+ * \sa SDL_StorageInterface
+ * \sa SDL_VirtualJoystickDesc
+ */
+#define SDL_INIT_INTERFACE(iface)               \
+    do {                                        \
+        SDL_zerop(iface);                       \
+        (iface)->version = sizeof(*(iface));    \
+    } while (0)
+
+
 #ifndef SDL_DISABLE_ALLOCA
 #define SDL_stack_alloc(type, count)    (type*)alloca(sizeof(type)*(count))
 #define SDL_stack_free(data)
@@ -527,14 +687,184 @@ extern "C" {
 #define SDL_stack_free(data)            SDL_free(data)
 #endif
 
+/**
+ * Allocate uninitialized memory.
+ *
+ * The allocated memory returned by this function must be freed with
+ * SDL_free().
+ *
+ * If `size` is 0, it will be set to 1.
+ *
+ * If you want to allocate memory aligned to a specific alignment, consider
+ * using SDL_aligned_alloc().
+ *
+ * \param size the size to allocate.
+ * \returns a pointer to the allocated memory, or NULL if allocation failed.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_free
+ * \sa SDL_calloc
+ * \sa SDL_realloc
+ * \sa SDL_aligned_alloc
+ */
 extern SDL_DECLSPEC SDL_MALLOC void * SDLCALL SDL_malloc(size_t size);
+
+/**
+ * Allocate a zero-initialized array.
+ *
+ * The memory returned by this function must be freed with SDL_free().
+ *
+ * If either of `nmemb` or `size` is 0, they will both be set to 1.
+ *
+ * \param nmemb the number of elements in the array.
+ * \param size the size of each element of the array.
+ * \returns a pointer to the allocated array, or NULL if allocation failed.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_free
+ * \sa SDL_malloc
+ * \sa SDL_realloc
+ */
 extern SDL_DECLSPEC SDL_MALLOC SDL_ALLOC_SIZE2(1, 2) void * SDLCALL SDL_calloc(size_t nmemb, size_t size);
+
+/**
+ * Change the size of allocated memory.
+ *
+ * The memory returned by this function must be freed with SDL_free().
+ *
+ * If `size` is 0, it will be set to 1. Note that this is unlike some other C
+ * runtime `realloc` implementations, which may treat `realloc(mem, 0)` the
+ * same way as `free(mem)`.
+ *
+ * If `mem` is NULL, the behavior of this function is equivalent to
+ * SDL_malloc(). Otherwise, the function can have one of three possible
+ * outcomes:
+ *
+ * - If it returns the same pointer as `mem`, it means that `mem` was resized
+ *   in place without freeing.
+ * - If it returns a different non-NULL pointer, it means that `mem` was freed
+ *   and cannot be dereferenced anymore.
+ * - If it returns NULL (indicating failure), then `mem` will remain valid and
+ *   must still be freed with SDL_free().
+ *
+ * \param mem a pointer to allocated memory to reallocate, or NULL.
+ * \param size the new size of the memory.
+ * \returns a pointer to the newly allocated memory, or NULL if allocation
+ *          failed.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_free
+ * \sa SDL_malloc
+ * \sa SDL_calloc
+ */
 extern SDL_DECLSPEC SDL_ALLOC_SIZE(2) void * SDLCALL SDL_realloc(void *mem, size_t size);
+
+/**
+ * Free allocated memory.
+ *
+ * The pointer is no longer valid after this call and cannot be dereferenced
+ * anymore.
+ *
+ * If `mem` is NULL, this function does nothing.
+ *
+ * \param mem a pointer to allocated memory, or NULL.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_malloc
+ * \sa SDL_calloc
+ * \sa SDL_realloc
+ */
 extern SDL_DECLSPEC void SDLCALL SDL_free(void *mem);
 
+/**
+ * A callback used to implement SDL_malloc().
+ *
+ * SDL will always ensure that the passed `size` is greater than 0.
+ *
+ * \param size the size to allocate.
+ * \returns a pointer to the allocated memory, or NULL if allocation failed.
+ *
+ * \threadsafety It should be safe to call this callback from any thread.
+ *
+ * \since This datatype is available since SDL 3.1.3.
+ *
+ * \sa SDL_malloc
+ * \sa SDL_GetOriginalMemoryFunctions
+ * \sa SDL_GetMemoryFunctions
+ * \sa SDL_SetMemoryFunctions
+ */
 typedef void *(SDLCALL *SDL_malloc_func)(size_t size);
+
+/**
+ * A callback used to implement SDL_calloc().
+ *
+ * SDL will always ensure that the passed `nmemb` and `size` are both greater
+ * than 0.
+ *
+ * \param nmemb the number of elements in the array.
+ * \param size the size of each element of the array.
+ * \returns a pointer to the allocated array, or NULL if allocation failed.
+ *
+ * \threadsafety It should be safe to call this callback from any thread.
+ *
+ * \since This datatype is available since SDL 3.1.3.
+ *
+ * \sa SDL_calloc
+ * \sa SDL_GetOriginalMemoryFunctions
+ * \sa SDL_GetMemoryFunctions
+ * \sa SDL_SetMemoryFunctions
+ */
 typedef void *(SDLCALL *SDL_calloc_func)(size_t nmemb, size_t size);
+
+/**
+ * A callback used to implement SDL_realloc().
+ *
+ * SDL will always ensure that the passed `size` is greater than 0.
+ *
+ * \param mem a pointer to allocated memory to reallocate, or NULL.
+ * \param size the new size of the memory.
+ * \returns a pointer to the newly allocated memory, or NULL if allocation
+ *          failed.
+ *
+ * \threadsafety It should be safe to call this callback from any thread.
+ *
+ * \since This datatype is available since SDL 3.1.3.
+ *
+ * \sa SDL_realloc
+ * \sa SDL_GetOriginalMemoryFunctions
+ * \sa SDL_GetMemoryFunctions
+ * \sa SDL_SetMemoryFunctions
+ */
 typedef void *(SDLCALL *SDL_realloc_func)(void *mem, size_t size);
+
+/**
+ * A callback used to implement SDL_free().
+ *
+ * SDL will always ensure that the passed `mem` is a non-NULL pointer.
+ *
+ * \param mem a pointer to allocated memory.
+ *
+ * \threadsafety It should be safe to call this callback from any thread.
+ *
+ * \since This datatype is available since SDL 3.1.3.
+ *
+ * \sa SDL_free
+ * \sa SDL_GetOriginalMemoryFunctions
+ * \sa SDL_GetMemoryFunctions
+ * \sa SDL_SetMemoryFunctions
+ */
 typedef void (SDLCALL *SDL_free_func)(void *mem);
 
 /**
@@ -552,7 +882,7 @@ typedef void (SDLCALL *SDL_free_func)(void *mem);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC void SDLCALL SDL_GetOriginalMemoryFunctions(SDL_malloc_func *malloc_func,
                                                             SDL_calloc_func *calloc_func,
@@ -571,7 +901,7 @@ extern SDL_DECLSPEC void SDLCALL SDL_GetOriginalMemoryFunctions(SDL_malloc_func 
  *               unlikely event of a background thread calling
  *               SDL_SetMemoryFunctions simultaneously.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_SetMemoryFunctions
  * \sa SDL_GetOriginalMemoryFunctions
@@ -595,42 +925,42 @@ extern SDL_DECLSPEC void SDLCALL SDL_GetMemoryFunctions(SDL_malloc_func *malloc_
  * \param calloc_func custom calloc function.
  * \param realloc_func custom realloc function.
  * \param free_func custom free function.
- * \returns 0 on success or a negative error code on failure; call
- *          SDL_GetError() for more information.
+ * \returns true on success or false on failure; call SDL_GetError() for more
+ *          information.
  *
  * \threadsafety It is safe to call this function from any thread, but one
  *               should not replace the memory functions once any allocations
  *               are made!
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_GetMemoryFunctions
  * \sa SDL_GetOriginalMemoryFunctions
  */
-extern SDL_DECLSPEC int SDLCALL SDL_SetMemoryFunctions(SDL_malloc_func malloc_func,
-                                                   SDL_calloc_func calloc_func,
-                                                   SDL_realloc_func realloc_func,
-                                                   SDL_free_func free_func);
+extern SDL_DECLSPEC bool SDLCALL SDL_SetMemoryFunctions(SDL_malloc_func malloc_func,
+                                                            SDL_calloc_func calloc_func,
+                                                            SDL_realloc_func realloc_func,
+                                                            SDL_free_func free_func);
 
 /**
- * Allocate memory aligned to a specific value.
- *
- * If `alignment` is less than the size of `void *`, then it will be increased
- * to match that.
- *
- * The returned memory address will be a multiple of the alignment value, and
- * the amount of memory allocated will be a multiple of the alignment value.
+ * Allocate memory aligned to a specific alignment.
  *
  * The memory returned by this function must be freed with SDL_aligned_free(),
- * and _not_ SDL_free.
+ * _not_ SDL_free().
  *
- * \param alignment the alignment requested.
+ * If `alignment` is less than the size of `void *`, it will be increased to
+ * match that.
+ *
+ * The returned memory address will be a multiple of the alignment value, and
+ * the size of the memory allocated will be a multiple of the alignment value.
+ *
+ * \param alignment the alignment of the memory.
  * \param size the size to allocate.
- * \returns a pointer to the aligned memory.
+ * \returns a pointer to the aligned memory, or NULL if allocation failed.
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_aligned_free
  */
@@ -642,11 +972,13 @@ extern SDL_DECLSPEC SDL_MALLOC void * SDLCALL SDL_aligned_alloc(size_t alignment
  * The pointer is no longer valid after this call and cannot be dereferenced
  * anymore.
  *
- * \param mem a pointer previously returned by SDL_aligned_alloc.
+ * If `mem` is NULL, this function does nothing.
+ *
+ * \param mem a pointer previously returned by SDL_aligned_alloc(), or NULL.
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_aligned_alloc
  */
@@ -659,20 +991,475 @@ extern SDL_DECLSPEC void SDLCALL SDL_aligned_free(void *mem);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_GetNumAllocations(void);
 
-extern SDL_DECLSPEC const char * SDLCALL SDL_getenv(const char *name);
-extern SDL_DECLSPEC int SDLCALL SDL_setenv(const char *name, const char *value, int overwrite);
-extern SDL_DECLSPEC int SDLCALL SDL_unsetenv(const char *name);
+/**
+ * A thread-safe set of environment variables
+ *
+ * \since This struct is available since SDL 3.1.3.
+ *
+ * \sa SDL_GetEnvironment
+ * \sa SDL_CreateEnvironment
+ * \sa SDL_GetEnvironmentVariable
+ * \sa SDL_GetEnvironmentVariables
+ * \sa SDL_SetEnvironmentVariable
+ * \sa SDL_UnsetEnvironmentVariable
+ * \sa SDL_DestroyEnvironment
+ */
+typedef struct SDL_Environment SDL_Environment;
 
+/**
+ * Get the process environment.
+ *
+ * This is initialized at application start and is not affected by setenv()
+ * and unsetenv() calls after that point. Use SDL_SetEnvironmentVariable() and
+ * SDL_UnsetEnvironmentVariable() if you want to modify this environment, or
+ * SDL_setenv_unsafe() or SDL_unsetenv_unsafe() if you want changes to persist
+ * in the C runtime environment after SDL_Quit().
+ *
+ * \returns a pointer to the environment for the process or NULL on failure;
+ *          call SDL_GetError() for more information.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_GetEnvironmentVariable
+ * \sa SDL_GetEnvironmentVariables
+ * \sa SDL_SetEnvironmentVariable
+ * \sa SDL_UnsetEnvironmentVariable
+ */
+extern SDL_DECLSPEC SDL_Environment * SDLCALL SDL_GetEnvironment(void);
+
+/**
+ * Create a set of environment variables
+ *
+ * \param populated true to initialize it from the C runtime environment,
+ *                  false to create an empty environment.
+ * \returns a pointer to the new environment or NULL on failure; call
+ *          SDL_GetError() for more information.
+ *
+ * \threadsafety If `populated` is false, it is safe to call this function
+ *               from any thread, otherwise it is safe if no other threads are
+ *               calling setenv() or unsetenv()
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_GetEnvironmentVariable
+ * \sa SDL_GetEnvironmentVariables
+ * \sa SDL_SetEnvironmentVariable
+ * \sa SDL_UnsetEnvironmentVariable
+ * \sa SDL_DestroyEnvironment
+ */
+extern SDL_DECLSPEC SDL_Environment * SDLCALL SDL_CreateEnvironment(bool populated);
+
+/**
+ * Get the value of a variable in the environment.
+ *
+ * \param env the environment to query.
+ * \param name the name of the variable to get.
+ * \returns a pointer to the value of the variable or NULL if it can't be
+ *          found.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_GetEnvironment
+ * \sa SDL_CreateEnvironment
+ * \sa SDL_GetEnvironmentVariables
+ * \sa SDL_SetEnvironmentVariable
+ * \sa SDL_UnsetEnvironmentVariable
+ */
+extern SDL_DECLSPEC const char * SDLCALL SDL_GetEnvironmentVariable(SDL_Environment *env, const char *name);
+
+/**
+ * Get all variables in the environment.
+ *
+ * \param env the environment to query.
+ * \returns a NULL terminated array of pointers to environment variables in
+ *          the form "variable=value" or NULL on failure; call SDL_GetError()
+ *          for more information. This is a single allocation that should be
+ *          freed with SDL_free() when it is no longer needed.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_GetEnvironment
+ * \sa SDL_CreateEnvironment
+ * \sa SDL_GetEnvironmentVariables
+ * \sa SDL_SetEnvironmentVariable
+ * \sa SDL_UnsetEnvironmentVariable
+ */
+extern SDL_DECLSPEC char ** SDLCALL SDL_GetEnvironmentVariables(SDL_Environment *env);
+
+/**
+ * Set the value of a variable in the environment.
+ *
+ * \param env the environment to modify.
+ * \param name the name of the variable to set.
+ * \param value the value of the variable to set.
+ * \param overwrite true to overwrite the variable if it exists, false to
+ *                  return success without setting the variable if it already
+ *                  exists.
+ * \returns true on success or false on failure; call SDL_GetError() for more
+ *          information.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_GetEnvironment
+ * \sa SDL_CreateEnvironment
+ * \sa SDL_GetEnvironmentVariable
+ * \sa SDL_GetEnvironmentVariables
+ * \sa SDL_UnsetEnvironmentVariable
+ */
+extern SDL_DECLSPEC bool SDLCALL SDL_SetEnvironmentVariable(SDL_Environment *env, const char *name, const char *value, bool overwrite);
+
+/**
+ * Clear a variable from the environment.
+ *
+ * \param env the environment to modify.
+ * \param name the name of the variable to unset.
+ * \returns true on success or false on failure; call SDL_GetError() for more
+ *          information.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_GetEnvironment
+ * \sa SDL_CreateEnvironment
+ * \sa SDL_GetEnvironmentVariable
+ * \sa SDL_GetEnvironmentVariables
+ * \sa SDL_SetEnvironmentVariable
+ * \sa SDL_UnsetEnvironmentVariable
+ */
+extern SDL_DECLSPEC bool SDLCALL SDL_UnsetEnvironmentVariable(SDL_Environment *env, const char *name);
+
+/**
+ * Destroy a set of environment variables.
+ *
+ * \param env the environment to destroy.
+ *
+ * \threadsafety It is safe to call this function from any thread, as long as
+ *               the environment is no longer in use.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_CreateEnvironment
+ */
+extern SDL_DECLSPEC void SDLCALL SDL_DestroyEnvironment(SDL_Environment *env);
+
+/**
+ * Get the value of a variable in the environment.
+ *
+ * This function uses SDL's cached copy of the environment and is thread-safe.
+ *
+ * \param name the name of the variable to get.
+ * \returns a pointer to the value of the variable or NULL if it can't be
+ *          found.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ */
+extern SDL_DECLSPEC const char * SDLCALL SDL_getenv(const char *name);
+
+/**
+ * Get the value of a variable in the environment.
+ *
+ * This function bypasses SDL's cached copy of the environment and is not
+ * thread-safe.
+ *
+ * \param name the name of the variable to get.
+ * \returns a pointer to the value of the variable or NULL if it can't be
+ *          found.
+ *
+ * \threadsafety This function is not thread safe, consider using SDL_getenv()
+ *               instead.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_getenv
+ */
+extern SDL_DECLSPEC const char * SDLCALL SDL_getenv_unsafe(const char *name);
+
+/**
+ * Set the value of a variable in the environment.
+ *
+ * \param name the name of the variable to set.
+ * \param value the value of the variable to set.
+ * \param overwrite 1 to overwrite the variable if it exists, 0 to return
+ *                  success without setting the variable if it already exists.
+ * \returns 0 on success, -1 on error.
+ *
+ * \threadsafety This function is not thread safe, consider using
+ *               SDL_SetEnvironmentVariable() instead.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_SetEnvironmentVariable
+ */
+extern SDL_DECLSPEC int SDLCALL SDL_setenv_unsafe(const char *name, const char *value, int overwrite);
+
+/**
+ * Clear a variable from the environment.
+ *
+ * \param name the name of the variable to unset.
+ * \returns 0 on success, -1 on error.
+ *
+ * \threadsafety This function is not thread safe, consider using
+ *               SDL_UnsetEnvironmentVariable() instead.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_UnsetEnvironmentVariable
+ */
+extern SDL_DECLSPEC int SDLCALL SDL_unsetenv_unsafe(const char *name);
+
+/**
+ * A callback used with SDL sorting and binary search functions.
+ *
+ * \param a a pointer to the first element being compared.
+ * \param b a pointer to the second element being compared.
+ * \returns -1 if `a` should be sorted before `b`, 1 if `b` should be sorted
+ *          before `a`, 0 if they are equal. If two elements are equal, their
+ *          order in the sorted array is undefined.
+ *
+ * \since This callback is available since SDL 3.1.3.
+ *
+ * \sa SDL_bsearch
+ * \sa SDL_qsort
+ */
 typedef int (SDLCALL *SDL_CompareCallback)(const void *a, const void *b);
+
+/**
+ * Sort an array.
+ *
+ * For example:
+ *
+ * ```c
+ * typedef struct {
+ *     int key;
+ *     const char *string;
+ * } data;
+ *
+ * int SDLCALL compare(const void *a, const void *b)
+ * {
+ *     const data *A = (const data *)a;
+ *     const data *B = (const data *)b;
+ *
+ *     if (A->n < B->n) {
+ *         return -1;
+ *     } else if (B->n < A->n) {
+ *         return 1;
+ *     } else {
+ *         return 0;
+ *     }
+ * }
+ *
+ * data values[] = {
+ *     { 3, "third" }, { 1, "first" }, { 2, "second" }
+ * };
+ *
+ * SDL_qsort(values, SDL_arraysize(values), sizeof(values[0]), compare);
+ * ```
+ *
+ * \param base a pointer to the start of the array.
+ * \param nmemb the number of elements in the array.
+ * \param size the size of the elements in the array.
+ * \param compare a function used to compare elements in the array.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_bsearch
+ * \sa SDL_qsort_r
+ */
 extern SDL_DECLSPEC void SDLCALL SDL_qsort(void *base, size_t nmemb, size_t size, SDL_CompareCallback compare);
+
+/**
+ * Perform a binary search on a previously sorted array.
+ *
+ * For example:
+ *
+ * ```c
+ * typedef struct {
+ *     int key;
+ *     const char *string;
+ * } data;
+ *
+ * int SDLCALL compare(const void *a, const void *b)
+ * {
+ *     const data *A = (const data *)a;
+ *     const data *B = (const data *)b;
+ *
+ *     if (A->n < B->n) {
+ *         return -1;
+ *     } else if (B->n < A->n) {
+ *         return 1;
+ *     } else {
+ *         return 0;
+ *     }
+ * }
+ *
+ * data values[] = {
+ *     { 1, "first" }, { 2, "second" }, { 3, "third" }
+ * };
+ * data key = { 2, NULL };
+ *
+ * data *result = SDL_bsearch(&key, values, SDL_arraysize(values), sizeof(values[0]), compare);
+ * ```
+ *
+ * \param key a pointer to a key equal to the element being searched for.
+ * \param base a pointer to the start of the array.
+ * \param nmemb the number of elements in the array.
+ * \param size the size of the elements in the array.
+ * \param compare a function used to compare elements in the array.
+ * \returns a pointer to the matching element in the array, or NULL if not
+ *          found.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_bsearch_r
+ * \sa SDL_qsort
+ */
 extern SDL_DECLSPEC void * SDLCALL SDL_bsearch(const void *key, const void *base, size_t nmemb, size_t size, SDL_CompareCallback compare);
 
+/**
+ * A callback used with SDL sorting and binary search functions.
+ *
+ * \param userdata the `userdata` pointer passed to the sort function.
+ * \param a a pointer to the first element being compared.
+ * \param b a pointer to the second element being compared.
+ * \returns -1 if `a` should be sorted before `b`, 1 if `b` should be sorted
+ *          before `a`, 0 if they are equal. If two elements are equal, their
+ *          order in the sorted array is undefined.
+ *
+ * \since This callback is available since SDL 3.1.3.
+ *
+ * \sa SDL_qsort_r
+ * \sa SDL_bsearch_r
+ */
 typedef int (SDLCALL *SDL_CompareCallback_r)(void *userdata, const void *a, const void *b);
+
+/**
+ * Sort an array, passing a userdata pointer to the compare function.
+ *
+ * For example:
+ *
+ * ```c
+ * typedef enum {
+ *     sort_increasing,
+ *     sort_decreasing,
+ * } sort_method;
+ *
+ * typedef struct {
+ *     int key;
+ *     const char *string;
+ * } data;
+ *
+ * int SDLCALL compare(const void *userdata, const void *a, const void *b)
+ * {
+ *     sort_method method = (sort_method)(uintptr_t)userdata;
+ *     const data *A = (const data *)a;
+ *     const data *B = (const data *)b;
+ *
+ *     if (A->key < B->key) {
+ *         return (method == sort_increasing) ? -1 : 1;
+ *     } else if (B->key < A->key) {
+ *         return (method == sort_increasing) ? 1 : -1;
+ *     } else {
+ *         return 0;
+ *     }
+ * }
+ *
+ * data values[] = {
+ *     { 3, "third" }, { 1, "first" }, { 2, "second" }
+ * };
+ *
+ * SDL_qsort_r(values, SDL_arraysize(values), sizeof(values[0]), compare, (const void *)(uintptr_t)sort_increasing);
+ * ```
+ *
+ * \param base a pointer to the start of the array.
+ * \param nmemb the number of elements in the array.
+ * \param size the size of the elements in the array.
+ * \param compare a function used to compare elements in the array.
+ * \param userdata a pointer to pass to the compare function.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_bsearch_r
+ * \sa SDL_qsort
+ */
 extern SDL_DECLSPEC void SDLCALL SDL_qsort_r(void *base, size_t nmemb, size_t size, SDL_CompareCallback_r compare, void *userdata);
+
+/**
+ * Perform a binary search on a previously sorted array, passing a userdata
+ * pointer to the compare function.
+ *
+ * For example:
+ *
+ * ```c
+ * typedef enum {
+ *     sort_increasing,
+ *     sort_decreasing,
+ * } sort_method;
+ *
+ * typedef struct {
+ *     int key;
+ *     const char *string;
+ * } data;
+ *
+ * int SDLCALL compare(const void *userdata, const void *a, const void *b)
+ * {
+ *     sort_method method = (sort_method)(uintptr_t)userdata;
+ *     const data *A = (const data *)a;
+ *     const data *B = (const data *)b;
+ *
+ *     if (A->key < B->key) {
+ *         return (method == sort_increasing) ? -1 : 1;
+ *     } else if (B->key < A->key) {
+ *         return (method == sort_increasing) ? 1 : -1;
+ *     } else {
+ *         return 0;
+ *     }
+ * }
+ *
+ * data values[] = {
+ *     { 1, "first" }, { 2, "second" }, { 3, "third" }
+ * };
+ * data key = { 2, NULL };
+ *
+ * data *result = SDL_bsearch_r(&key, values, SDL_arraysize(values), sizeof(values[0]), compare, (const void *)(uintptr_t)sort_increasing);
+ * ```
+ *
+ * \param key a pointer to a key equal to the element being searched for.
+ * \param base a pointer to the start of the array.
+ * \param nmemb the number of elements in the array.
+ * \param size the size of the elements in the array.
+ * \param compare a function used to compare elements in the array.
+ * \param userdata a pointer to pass to the compare function.
+ * \returns a pointer to the matching element in the array, or NULL if not
+ *          found.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_bsearch
+ * \sa SDL_qsort_r
+ */
 extern SDL_DECLSPEC void * SDLCALL SDL_bsearch_r(const void *key, const void *base, size_t nmemb, size_t size, SDL_CompareCallback_r compare, void *userdata);
 
 extern SDL_DECLSPEC int SDLCALL SDL_abs(int x);
@@ -693,7 +1480,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_abs(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_isalpha(int x);
 
@@ -708,7 +1495,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_isalpha(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_isalnum(int x);
 
@@ -723,7 +1510,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_isalnum(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_isblank(int x);
 
@@ -738,7 +1525,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_isblank(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_iscntrl(int x);
 
@@ -753,7 +1540,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_iscntrl(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_isdigit(int x);
 
@@ -768,7 +1555,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_isdigit(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_isxdigit(int x);
 
@@ -783,7 +1570,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_isxdigit(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_isgraph
  * \sa SDL_isalnum
@@ -808,7 +1595,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_ispunct(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_isspace(int x);
 
@@ -823,7 +1610,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_isspace(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_isupper(int x);
 
@@ -838,7 +1625,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_isupper(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_islower(int x);
 
@@ -857,7 +1644,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_islower(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_isprint(int x);
 
@@ -876,7 +1663,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_isprint(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_isprint
  */
@@ -896,7 +1683,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_isgraph(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_toupper(int x);
 
@@ -914,13 +1701,32 @@ extern SDL_DECLSPEC int SDLCALL SDL_toupper(int x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_tolower(int x);
 
 extern SDL_DECLSPEC Uint16 SDLCALL SDL_crc16(Uint16 crc, const void *data, size_t len);
 extern SDL_DECLSPEC Uint32 SDLCALL SDL_crc32(Uint32 crc, const void *data, size_t len);
+extern SDL_DECLSPEC Uint32 SDLCALL SDL_murmur3_32(const void *data, size_t len, Uint32 seed);
 
+/**
+ * Copy non-overlapping memory.
+ *
+ * The memory regions must not overlap. If they do, use SDL_memmove() instead.
+ *
+ * \param dst The destination memory region. Must not be NULL, and must not
+ *            overlap with `src`.
+ * \param src The source memory region. Must not be NULL, and must not overlap
+ *            with `dst`.
+ * \param len The length in bytes of both `dst` and `src`.
+ * \returns `dst`.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_memmove
+ */
 extern SDL_DECLSPEC void * SDLCALL SDL_memcpy(SDL_OUT_BYTECAP(len) void *dst, SDL_IN_BYTECAP(len) const void *src, size_t len);
 
 /* Take advantage of compiler optimizations for memcpy */
@@ -935,6 +1741,23 @@ extern SDL_DECLSPEC void * SDLCALL SDL_memcpy(SDL_OUT_BYTECAP(len) void *dst, SD
     { SDL_COMPILE_TIME_ASSERT(SDL_copyp, sizeof (*(dst)) == sizeof (*(src))); }             \
     SDL_memcpy((dst), (src), sizeof(*(src)))
 
+/**
+ * Copy memory.
+ *
+ * It is okay for the memory regions to overlap. If you are confident that the
+ * regions never overlap, using SDL_memcpy() may improve performance.
+ *
+ * \param dst The destination memory region. Must not be NULL.
+ * \param src The source memory region. Must not be NULL.
+ * \param len The length in bytes of both `dst` and `src`.
+ * \returns `dst`.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_memcpy
+ */
 extern SDL_DECLSPEC void * SDLCALL SDL_memmove(SDL_OUT_BYTECAP(len) void *dst, SDL_IN_BYTECAP(len) const void *src, size_t len);
 
 /* Take advantage of compiler optimizations for memmove */
@@ -964,8 +1787,63 @@ extern SDL_DECLSPEC int SDLCALL SDL_memcmp(const void *s1, const void *s2, size_
 
 extern SDL_DECLSPEC size_t SDLCALL SDL_wcslen(const wchar_t *wstr);
 extern SDL_DECLSPEC size_t SDLCALL SDL_wcsnlen(const wchar_t *wstr, size_t maxlen);
+
+/**
+ * Copy a wide string.
+ *
+ * This function copies `maxlen` - 1 wide characters from `src` to `dst`, then
+ * appends a null terminator.
+ *
+ * `src` and `dst` must not overlap.
+ *
+ * If `maxlen` is 0, no wide characters are copied and no null terminator is
+ * written.
+ *
+ * \param dst The destination buffer. Must not be NULL, and must not overlap
+ *            with `src`.
+ * \param src The null-terminated wide string to copy. Must not be NULL, and
+ *            must not overlap with `dst`.
+ * \param maxlen The length (in wide characters) of the destination buffer.
+ * \returns The length (in wide characters, excluding the null terminator) of
+ *          `src`.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_wcslcat
+ */
 extern SDL_DECLSPEC size_t SDLCALL SDL_wcslcpy(SDL_OUT_Z_CAP(maxlen) wchar_t *dst, const wchar_t *src, size_t maxlen);
+
+/**
+ * Concatenate wide strings.
+ *
+ * This function appends up to `maxlen` - SDL_wcslen(dst) - 1 wide characters
+ * from `src` to the end of the wide string in `dst`, then appends a null
+ * terminator.
+ *
+ * `src` and `dst` must not overlap.
+ *
+ * If `maxlen` - SDL_wcslen(dst) - 1 is less than or equal to 0, then `dst` is
+ * unmodified.
+ *
+ * \param dst The destination buffer already containing the first
+ *            null-terminated wide string. Must not be NULL and must not
+ *            overlap with `src`.
+ * \param src The second null-terminated wide string. Must not be NULL, and
+ *            must not overlap with `dst`.
+ * \param maxlen The length (in wide characters) of the destination buffer.
+ * \returns The length (in wide characters, excluding the null terminator) of
+ *          the string in `dst` plus the length of `src`.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_wcslcpy
+ */
 extern SDL_DECLSPEC size_t SDLCALL SDL_wcslcat(SDL_INOUT_Z_CAP(maxlen) wchar_t *dst, const wchar_t *src, size_t maxlen);
+
 extern SDL_DECLSPEC wchar_t * SDLCALL SDL_wcsdup(const wchar_t *wstr);
 extern SDL_DECLSPEC wchar_t * SDLCALL SDL_wcsstr(const wchar_t *haystack, const wchar_t *needle);
 extern SDL_DECLSPEC wchar_t * SDLCALL SDL_wcsnstr(const wchar_t *haystack, const wchar_t *needle, size_t maxlen);
@@ -985,7 +1863,7 @@ extern SDL_DECLSPEC wchar_t * SDLCALL SDL_wcsnstr(const wchar_t *haystack, const
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_wcscmp(const wchar_t *str1, const wchar_t *str2);
 
@@ -1016,7 +1894,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_wcscmp(const wchar_t *str1, const wchar_t *s
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_wcsncmp(const wchar_t *str1, const wchar_t *str2, size_t maxlen);
 
@@ -1046,7 +1924,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_wcsncmp(const wchar_t *str1, const wchar_t *
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_wcscasecmp(const wchar_t *str1, const wchar_t *str2);
 
@@ -1088,17 +1966,166 @@ extern SDL_DECLSPEC int SDLCALL SDL_wcscasecmp(const wchar_t *str1, const wchar_
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_wcsncasecmp(const wchar_t *str1, const wchar_t *str2, size_t maxlen);
 
+/**
+ * Parse a `long` from a wide string.
+ *
+ * If `str` starts with whitespace, then those whitespace characters are
+ * skipped before attempting to parse the number.
+ *
+ * If the parsed number does not fit inside a `long`, the result is clamped to
+ * the minimum and maximum representable `long` values.
+ *
+ * \param str The null-terminated wide string to read. Must not be NULL.
+ * \param endp If not NULL, the address of the first invalid wide character
+ *             (i.e. the next character after the parsed number) will be
+ *             written to this pointer.
+ * \param base The base of the integer to read. Supported values are 0 and 2
+ *             to 36 inclusive. If 0, the base will be inferred from the
+ *             number's prefix (0x for hexadecimal, 0 for octal, decimal
+ *             otherwise).
+ * \returns The parsed `long`, or 0 if no number could be parsed.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_strtol
+ */
 extern SDL_DECLSPEC long SDLCALL SDL_wcstol(const wchar_t *str, wchar_t **endp, int base);
 
+/**
+ * This works exactly like strlen() but doesn't require access to a C runtime.
+ *
+ * Counts the bytes in `str`, excluding the null terminator.
+ *
+ * If you need the length of a UTF-8 string, consider using SDL_utf8strlen().
+ *
+ * \param str The null-terminated string to read. Must not be NULL.
+ * \returns The length (in bytes, excluding the null terminator) of `src`.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_strnlen
+ * \sa SDL_utf8strlen
+ * \sa SDL_utf8strnlen
+ */
 extern SDL_DECLSPEC size_t SDLCALL SDL_strlen(const char *str);
+
+/**
+ * This works exactly like strnlen() but doesn't require access to a C
+ * runtime.
+ *
+ * Counts up to a maximum of `maxlen` bytes in `str`, excluding the null
+ * terminator.
+ *
+ * If you need the length of a UTF-8 string, consider using SDL_utf8strnlen().
+ *
+ * \param str The null-terminated string to read. Must not be NULL.
+ * \param maxlen The maximum amount of bytes to count.
+ * \returns The length (in bytes, excluding the null terminator) of `src` but
+ *          never more than `maxlen`.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_strlen
+ * \sa SDL_utf8strlen
+ * \sa SDL_utf8strnlen
+ */
 extern SDL_DECLSPEC size_t SDLCALL SDL_strnlen(const char *str, size_t maxlen);
+
+/**
+ * Copy a string.
+ *
+ * This function copies up to `maxlen` - 1 characters from `src` to `dst`,
+ * then appends a null terminator.
+ *
+ * If `maxlen` is 0, no characters are copied and no null terminator is
+ * written.
+ *
+ * If you want to copy an UTF-8 string but need to ensure that multi-byte
+ * sequences are not truncated, consider using SDL_utf8strlcpy().
+ *
+ * \param dst The destination buffer. Must not be NULL, and must not overlap
+ *            with `src`.
+ * \param src The null-terminated string to copy. Must not be NULL, and must
+ *            not overlap with `dst`.
+ * \param maxlen The length (in characters) of the destination buffer.
+ * \returns The length (in characters, excluding the null terminator) of
+ *          `src`.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_strlcat
+ * \sa SDL_utf8strlcpy
+ */
 extern SDL_DECLSPEC size_t SDLCALL SDL_strlcpy(SDL_OUT_Z_CAP(maxlen) char *dst, const char *src, size_t maxlen);
+
+/**
+ * Copy an UTF-8 string.
+ *
+ * This function copies up to `dst_bytes` - 1 bytes from `src` to `dst` while
+ * also ensuring that the string written to `dst` does not end in a truncated
+ * multi-byte sequence. Finally, it appends a null terminator.
+ *
+ * `src` and `dst` must not overlap.
+ *
+ * Note that unlike SDL_strlcpy(), this function returns the number of bytes
+ * written, not the length of `src`.
+ *
+ * \param dst The destination buffer. Must not be NULL, and must not overlap
+ *            with `src`.
+ * \param src The null-terminated UTF-8 string to copy. Must not be NULL, and
+ *            must not overlap with `dst`.
+ * \param dst_bytes The length (in bytes) of the destination buffer. Must not
+ *                  be 0.
+ * \returns The number of bytes written, excluding the null terminator.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_strlcpy
+ */
 extern SDL_DECLSPEC size_t SDLCALL SDL_utf8strlcpy(SDL_OUT_Z_CAP(dst_bytes) char *dst, const char *src, size_t dst_bytes);
+
+/**
+ * Concatenate strings.
+ *
+ * This function appends up to `maxlen` - SDL_strlen(dst) - 1 characters from
+ * `src` to the end of the string in `dst`, then appends a null terminator.
+ *
+ * `src` and `dst` must not overlap.
+ *
+ * If `maxlen` - SDL_strlen(dst) - 1 is less than or equal to 0, then `dst` is
+ * unmodified.
+ *
+ * \param dst The destination buffer already containing the first
+ *            null-terminated string. Must not be NULL and must not overlap
+ *            with `src`.
+ * \param src The second null-terminated string. Must not be NULL, and must
+ *            not overlap with `dst`.
+ * \param maxlen The length (in characters) of the destination buffer.
+ * \returns The length (in characters, excluding the null terminator) of the
+ *          string in `dst` plus the length of `src`.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_strlcpy
+ */
 extern SDL_DECLSPEC size_t SDLCALL SDL_strlcat(SDL_INOUT_Z_CAP(maxlen) char *dst, const char *src, size_t maxlen);
+
 extern SDL_DECLSPEC SDL_MALLOC char * SDLCALL SDL_strdup(const char *str);
 extern SDL_DECLSPEC SDL_MALLOC char * SDLCALL SDL_strndup(const char *str, size_t maxlen);
 extern SDL_DECLSPEC char * SDLCALL SDL_strrev(char *str);
@@ -1118,7 +2145,7 @@ extern SDL_DECLSPEC char * SDLCALL SDL_strrev(char *str);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_strlwr
  */
@@ -1139,7 +2166,7 @@ extern SDL_DECLSPEC char * SDLCALL SDL_strupr(char *str);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_strupr
  */
@@ -1158,15 +2185,215 @@ extern SDL_DECLSPEC char * SDLCALL SDL_itoa(int value, char *str, int radix);
 extern SDL_DECLSPEC char * SDLCALL SDL_uitoa(unsigned int value, char *str, int radix);
 extern SDL_DECLSPEC char * SDLCALL SDL_ltoa(long value, char *str, int radix);
 extern SDL_DECLSPEC char * SDLCALL SDL_ultoa(unsigned long value, char *str, int radix);
-extern SDL_DECLSPEC char * SDLCALL SDL_lltoa(Sint64 value, char *str, int radix);
-extern SDL_DECLSPEC char * SDLCALL SDL_ulltoa(Uint64 value, char *str, int radix);
+extern SDL_DECLSPEC char * SDLCALL SDL_lltoa(long long value, char *str, int radix);
+extern SDL_DECLSPEC char * SDLCALL SDL_ulltoa(unsigned long long value, char *str, int radix);
 
+/**
+ * Parse an `int` from a string.
+ *
+ * The result of calling `SDL_atoi(str)` is equivalent to
+ * `(int)SDL_strtol(str, NULL, 10)`.
+ *
+ * \param str The null-terminated string to read. Must not be NULL.
+ * \returns The parsed `int`.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_atof
+ * \sa SDL_strtol
+ * \sa SDL_strtoul
+ * \sa SDL_strtoll
+ * \sa SDL_strtoull
+ * \sa SDL_strtod
+ * \sa SDL_itoa
+ */
 extern SDL_DECLSPEC int SDLCALL SDL_atoi(const char *str);
+
+/**
+ * Parse a `double` from a string.
+ *
+ * The result of calling `SDL_atof(str)` is equivalent to `SDL_strtod(str,
+ * NULL)`.
+ *
+ * \param str The null-terminated string to read. Must not be NULL.
+ * \returns The parsed `double`.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_atoi
+ * \sa SDL_strtol
+ * \sa SDL_strtoul
+ * \sa SDL_strtoll
+ * \sa SDL_strtoull
+ * \sa SDL_strtod
+ */
 extern SDL_DECLSPEC double SDLCALL SDL_atof(const char *str);
+
+/**
+ * Parse a `long` from a string.
+ *
+ * If `str` starts with whitespace, then those whitespace characters are
+ * skipped before attempting to parse the number.
+ *
+ * If the parsed number does not fit inside a `long`, the result is clamped to
+ * the minimum and maximum representable `long` values.
+ *
+ * \param str The null-terminated string to read. Must not be NULL.
+ * \param endp If not NULL, the address of the first invalid character (i.e.
+ *             the next character after the parsed number) will be written to
+ *             this pointer.
+ * \param base The base of the integer to read. Supported values are 0 and 2
+ *             to 36 inclusive. If 0, the base will be inferred from the
+ *             number's prefix (0x for hexadecimal, 0 for octal, decimal
+ *             otherwise).
+ * \returns The parsed `long`, or 0 if no number could be parsed.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_atoi
+ * \sa SDL_atof
+ * \sa SDL_strtoul
+ * \sa SDL_strtoll
+ * \sa SDL_strtoull
+ * \sa SDL_strtod
+ * \sa SDL_ltoa
+ * \sa SDL_wcstol
+ */
 extern SDL_DECLSPEC long SDLCALL SDL_strtol(const char *str, char **endp, int base);
+
+/**
+ * Parse an `unsigned long` from a string.
+ *
+ * If `str` starts with whitespace, then those whitespace characters are
+ * skipped before attempting to parse the number.
+ *
+ * If the parsed number does not fit inside an `unsigned long`, the result is
+ * clamped to the maximum representable `unsigned long` value.
+ *
+ * \param str The null-terminated string to read. Must not be NULL.
+ * \param endp If not NULL, the address of the first invalid character (i.e.
+ *             the next character after the parsed number) will be written to
+ *             this pointer.
+ * \param base The base of the integer to read. Supported values are 0 and 2
+ *             to 36 inclusive. If 0, the base will be inferred from the
+ *             number's prefix (0x for hexadecimal, 0 for octal, decimal
+ *             otherwise).
+ * \returns The parsed `unsigned long`, or 0 if no number could be parsed.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_atoi
+ * \sa SDL_atof
+ * \sa SDL_strtol
+ * \sa SDL_strtoll
+ * \sa SDL_strtoull
+ * \sa SDL_strtod
+ * \sa SDL_ultoa
+ */
 extern SDL_DECLSPEC unsigned long SDLCALL SDL_strtoul(const char *str, char **endp, int base);
-extern SDL_DECLSPEC Sint64 SDLCALL SDL_strtoll(const char *str, char **endp, int base);
-extern SDL_DECLSPEC Uint64 SDLCALL SDL_strtoull(const char *str, char **endp, int base);
+
+/**
+ * Parse a `long long` from a string.
+ *
+ * If `str` starts with whitespace, then those whitespace characters are
+ * skipped before attempting to parse the number.
+ *
+ * If the parsed number does not fit inside a `long long`, the result is
+ * clamped to the minimum and maximum representable `long long` values.
+ *
+ * \param str The null-terminated string to read. Must not be NULL.
+ * \param endp If not NULL, the address of the first invalid character (i.e.
+ *             the next character after the parsed number) will be written to
+ *             this pointer.
+ * \param base The base of the integer to read. Supported values are 0 and 2
+ *             to 36 inclusive. If 0, the base will be inferred from the
+ *             number's prefix (0x for hexadecimal, 0 for octal, decimal
+ *             otherwise).
+ * \returns The parsed `long long`, or 0 if no number could be parsed.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_atoi
+ * \sa SDL_atof
+ * \sa SDL_strtol
+ * \sa SDL_strtoul
+ * \sa SDL_strtoull
+ * \sa SDL_strtod
+ * \sa SDL_lltoa
+ */
+extern SDL_DECLSPEC long long SDLCALL SDL_strtoll(const char *str, char **endp, int base);
+
+/**
+ * Parse an `unsigned long long` from a string.
+ *
+ * If `str` starts with whitespace, then those whitespace characters are
+ * skipped before attempting to parse the number.
+ *
+ * If the parsed number does not fit inside an `unsigned long long`, the
+ * result is clamped to the maximum representable `unsigned long long` value.
+ *
+ * \param str The null-terminated string to read. Must not be NULL.
+ * \param endp If not NULL, the address of the first invalid character (i.e.
+ *             the next character after the parsed number) will be written to
+ *             this pointer.
+ * \param base The base of the integer to read. Supported values are 0 and 2
+ *             to 36 inclusive. If 0, the base will be inferred from the
+ *             number's prefix (0x for hexadecimal, 0 for octal, decimal
+ *             otherwise).
+ * \returns The parsed `unsigned long long`, or 0 if no number could be
+ *          parsed.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_atoi
+ * \sa SDL_atof
+ * \sa SDL_strtol
+ * \sa SDL_strtoll
+ * \sa SDL_strtoul
+ * \sa SDL_strtod
+ * \sa SDL_ulltoa
+ */
+extern SDL_DECLSPEC unsigned long long SDLCALL SDL_strtoull(const char *str, char **endp, int base);
+
+/**
+ * Parse a `double` from a string.
+ *
+ * This function makes fewer guarantees than the C runtime `strtod`:
+ *
+ * - Only decimal notation is guaranteed to be supported. The handling of
+ *   scientific and hexadecimal notation is unspecified.
+ * - Whether or not INF and NAN can be parsed is unspecified.
+ * - The precision of the result is unspecified.
+ *
+ * \param str The null-terminated string to read. Must not be NULL.
+ * \param endp If not NULL, the address of the first invalid character (i.e.
+ *             the next character after the parsed number) will be written to
+ *             this pointer.
+ * \returns The parsed `double`, or 0 if no number could be parsed.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ *
+ * \sa SDL_atoi
+ * \sa SDL_atof
+ * \sa SDL_strtol
+ * \sa SDL_strtoll
+ * \sa SDL_strtoul
+ * \sa SDL_strtoull
+ */
 extern SDL_DECLSPEC double SDLCALL SDL_strtod(const char *str, char **endp);
 
 /**
@@ -1185,7 +2412,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_strtod(const char *str, char **endp);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_strcmp(const char *str1, const char *str2);
 
@@ -1215,7 +2442,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_strcmp(const char *str1, const char *str2);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_strncmp(const char *str1, const char *str2, size_t maxlen);
 
@@ -1243,7 +2470,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_strncmp(const char *str1, const char *str2, 
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_strcasecmp(const char *str1, const char *str2);
 
@@ -1283,20 +2510,39 @@ extern SDL_DECLSPEC int SDLCALL SDL_strcasecmp(const char *str1, const char *str
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_strncasecmp(const char *str1, const char *str2, size_t maxlen);
 
 /**
+ * Searches a string for the first occurence of any character contained in a
+ * breakset, and returns a pointer from the string to that character.
+ *
+ * \param str The null-terminated string to be searched. Must not be NULL, and
+ *            must not overlap with `breakset`.
+ * \param breakset A null-terminated string containing the list of characters
+ *                 to look for. Must not be NULL, and must not overlap with
+ *                 `str`.
+ * \returns A pointer to the location, in str, of the first occurence of a
+ *          character present in the breakset, or NULL if none is found.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ */
+extern SDL_DECLSPEC char * SDLCALL SDL_strpbrk(const char *str, const char *breakset);
+
+/**
  * The Unicode REPLACEMENT CHARACTER codepoint.
  *
- * SDL_StepUTF8() reports this codepoint when it encounters a UTF-8 string
- * with encoding errors.
+ * SDL_StepUTF8() and SDL_StepBackUTF8() report this codepoint when they
+ * encounter a UTF-8 string with encoding errors.
  *
  * This tends to render as something like a question mark in most places.
  *
- * \since This macro is available since SDL 3.0.0.
+ * \since This macro is available since SDL 3.1.3.
  *
+ * \sa SDL_StepBackUTF8
  * \sa SDL_StepUTF8
  */
 #define SDL_INVALID_UNICODE_CODEPOINT 0xFFFD
@@ -1342,9 +2588,40 @@ extern SDL_DECLSPEC int SDLCALL SDL_strncasecmp(const char *str1, const char *st
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC Uint32 SDLCALL SDL_StepUTF8(const char **pstr, size_t *pslen);
+
+/**
+ * Decode a UTF-8 string in reverse, one Unicode codepoint at a time.
+ *
+ * This will go to the start of the previous Unicode codepoint in the string,
+ * move `*pstr` to that location and return that codepoint.
+ *
+ * If `*pstr` is already at the start of the string), it will not advance
+ * `*pstr` at all.
+ *
+ * Generally this function is called in a loop until it returns zero,
+ * adjusting its parameter each iteration.
+ *
+ * If an invalid UTF-8 sequence is encountered, this function returns
+ * SDL_INVALID_UNICODE_CODEPOINT.
+ *
+ * Several things can generate invalid UTF-8 sequences, including overlong
+ * encodings, the use of UTF-16 surrogate values, and truncated data. Please
+ * refer to
+ * [RFC3629](https://www.ietf.org/rfc/rfc3629.txt)
+ * for details.
+ *
+ * \param start a pointer to the beginning of the UTF-8 string.
+ * \param pstr a pointer to a UTF-8 string pointer to be read and adjusted.
+ * \returns the previous Unicode codepoint in the string.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL 3.1.3.
+ */
+extern SDL_DECLSPEC Uint32 SDLCALL SDL_StepBackUTF8(const char *start, const char **pstr);
 
 /**
  * Convert a single Unicode codepoint to UTF-8.
@@ -1371,17 +2648,17 @@ extern SDL_DECLSPEC Uint32 SDLCALL SDL_StepUTF8(const char **pstr, size_t *pslen
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
 extern SDL_DECLSPEC char * SDLCALL SDL_UCS4ToUTF8(Uint32 codepoint, char *dst);
 
 
 extern SDL_DECLSPEC int SDLCALL SDL_sscanf(const char *text, SDL_SCANF_FORMAT_STRING const char *fmt, ...) SDL_SCANF_VARARG_FUNC(2);
 extern SDL_DECLSPEC int SDLCALL SDL_vsscanf(const char *text, SDL_SCANF_FORMAT_STRING const char *fmt, va_list ap) SDL_SCANF_VARARG_FUNCV(2);
-extern SDL_DECLSPEC int SDLCALL SDL_snprintf(SDL_OUT_Z_CAP(maxlen) char *text, size_t maxlen, SDL_PRINTF_FORMAT_STRING const char *fmt, ... ) SDL_PRINTF_VARARG_FUNC(3);
-extern SDL_DECLSPEC int SDLCALL SDL_swprintf(SDL_OUT_Z_CAP(maxlen) wchar_t *text, size_t maxlen, SDL_PRINTF_FORMAT_STRING const wchar_t *fmt, ... ) SDL_WPRINTF_VARARG_FUNC(3);
+extern SDL_DECLSPEC int SDLCALL SDL_snprintf(SDL_OUT_Z_CAP(maxlen) char *text, size_t maxlen, SDL_PRINTF_FORMAT_STRING const char *fmt, ...) SDL_PRINTF_VARARG_FUNC(3);
+extern SDL_DECLSPEC int SDLCALL SDL_swprintf(SDL_OUT_Z_CAP(maxlen) wchar_t *text, size_t maxlen, SDL_PRINTF_FORMAT_STRING const wchar_t *fmt, ...) SDL_WPRINTF_VARARG_FUNC(3);
 extern SDL_DECLSPEC int SDLCALL SDL_vsnprintf(SDL_OUT_Z_CAP(maxlen) char *text, size_t maxlen, SDL_PRINTF_FORMAT_STRING const char *fmt, va_list ap) SDL_PRINTF_VARARG_FUNCV(3);
-extern SDL_DECLSPEC int SDLCALL SDL_vswprintf(SDL_OUT_Z_CAP(maxlen) wchar_t *text, size_t maxlen, const wchar_t *fmt, va_list ap);
+extern SDL_DECLSPEC int SDLCALL SDL_vswprintf(SDL_OUT_Z_CAP(maxlen) wchar_t *text, size_t maxlen, SDL_PRINTF_FORMAT_STRING const wchar_t *fmt, va_list ap) SDL_WPRINTF_VARARG_FUNCV(3);
 extern SDL_DECLSPEC int SDLCALL SDL_asprintf(char **strp, SDL_PRINTF_FORMAT_STRING const char *fmt, ...) SDL_PRINTF_VARARG_FUNC(2);
 extern SDL_DECLSPEC int SDLCALL SDL_vasprintf(char **strp, SDL_PRINTF_FORMAT_STRING const char *fmt, va_list ap) SDL_PRINTF_VARARG_FUNCV(2);
 
@@ -1397,7 +2674,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_vasprintf(char **strp, SDL_PRINTF_FORMAT_STR
  * \threadsafety This should be called on the same thread that calls
  *               SDL_rand*()
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_rand
  * \sa SDL_rand_bits
@@ -1432,7 +2709,7 @@ extern SDL_DECLSPEC void SDLCALL SDL_srand(Uint64 seed);
  *
  * \threadsafety All calls should be made from a single thread
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_srand
  * \sa SDL_randf
@@ -1455,7 +2732,7 @@ extern SDL_DECLSPEC Sint32 SDLCALL SDL_rand(Sint32 n);
  *
  * \threadsafety All calls should be made from a single thread
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_srand
  * \sa SDL_rand
@@ -1477,7 +2754,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_randf(void);
  *
  * \threadsafety All calls should be made from a single thread
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_rand
  * \sa SDL_randf
@@ -1512,7 +2789,7 @@ extern SDL_DECLSPEC Uint32 SDLCALL SDL_rand_bits(void);
  * \threadsafety This function is thread-safe, as long as the state pointer
  *               isn't shared between threads.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_rand
  * \sa SDL_rand_bits_r
@@ -1539,7 +2816,7 @@ extern SDL_DECLSPEC Sint32 SDLCALL SDL_rand_r(Uint64 *state, Sint32 n);
  * \threadsafety This function is thread-safe, as long as the state pointer
  *               isn't shared between threads.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_rand_bits_r
  * \sa SDL_rand_r
@@ -1565,7 +2842,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_randf_r(Uint64 *state);
  * \threadsafety This function is thread-safe, as long as the state pointer
  *               isn't shared between threads.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_rand_r
  * \sa SDL_randf_r
@@ -1602,7 +2879,7 @@ extern SDL_DECLSPEC Uint32 SDLCALL SDL_rand_bits_r(Uint64 *state);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_acosf
  * \sa SDL_asin
@@ -1632,7 +2909,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_acos(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_acos
  * \sa SDL_asinf
@@ -1662,7 +2939,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_acosf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_asinf
  * \sa SDL_acos
@@ -1692,7 +2969,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_asin(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_asin
  * \sa SDL_acosf
@@ -1724,7 +3001,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_asinf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_atanf
  * \sa SDL_atan2
@@ -1756,7 +3033,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_atan(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_atan
  * \sa SDL_atan2f
@@ -1792,7 +3069,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_atanf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_atan2f
  * \sa SDL_atan
@@ -1828,7 +3105,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_atan2(double y, double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_atan2f
  * \sa SDL_atan
@@ -1854,7 +3131,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_atan2f(float y, float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_ceilf
  * \sa SDL_floor
@@ -1882,7 +3159,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_ceil(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_ceil
  * \sa SDL_floorf
@@ -1911,7 +3188,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_ceilf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_copysignf
  * \sa SDL_fabs
@@ -1937,7 +3214,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_copysign(double x, double y);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_copysignf
  * \sa SDL_fabsf
@@ -1964,7 +3241,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_copysignf(float x, float y);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_cosf
  * \sa SDL_acos
@@ -1992,7 +3269,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_cos(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_cos
  * \sa SDL_acosf
@@ -2025,7 +3302,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_cosf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_expf
  * \sa SDL_log
@@ -2057,7 +3334,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_exp(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_exp
  * \sa SDL_logf
@@ -2079,7 +3356,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_expf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_fabsf
  */
@@ -2100,7 +3377,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_fabs(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_fabs
  */
@@ -2124,7 +3401,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_fabsf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_floorf
  * \sa SDL_ceil
@@ -2152,7 +3429,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_floor(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_floor
  * \sa SDL_ceilf
@@ -2180,7 +3457,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_floorf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_truncf
  * \sa SDL_fmod
@@ -2209,7 +3486,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_trunc(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_trunc
  * \sa SDL_fmodf
@@ -2238,7 +3515,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_truncf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_fmodf
  * \sa SDL_modf
@@ -2268,7 +3545,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_fmod(double x, double y);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_fmod
  * \sa SDL_truncf
@@ -2288,7 +3565,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_fmodf(float x, float y);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_isinff
  */
@@ -2302,7 +3579,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_isinf(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_isinf
  */
@@ -2316,7 +3593,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_isinff(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_isnanf
  */
@@ -2330,7 +3607,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_isnan(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_isnan
  */
@@ -2358,7 +3635,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_isnanf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_logf
  * \sa SDL_log10
@@ -2388,7 +3665,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_log(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_log
  * \sa SDL_expf
@@ -2417,7 +3694,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_logf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_log10f
  * \sa SDL_log
@@ -2447,7 +3724,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_log10(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_log10
  * \sa SDL_logf
@@ -2467,7 +3744,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_log10f(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_modff
  * \sa SDL_trunc
@@ -2487,7 +3764,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_modf(double x, double *y);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_modf
  * \sa SDL_truncf
@@ -2519,7 +3796,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_modff(float x, float *y);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_powf
  * \sa SDL_exp
@@ -2551,7 +3828,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_pow(double x, double y);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_pow
  * \sa SDL_expf
@@ -2578,7 +3855,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_powf(float x, float y);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_roundf
  * \sa SDL_lround
@@ -2607,7 +3884,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_round(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_round
  * \sa SDL_lroundf
@@ -2636,7 +3913,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_roundf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_lroundf
  * \sa SDL_round
@@ -2665,7 +3942,7 @@ extern SDL_DECLSPEC long SDLCALL SDL_lround(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_lround
  * \sa SDL_roundf
@@ -2693,7 +3970,7 @@ extern SDL_DECLSPEC long SDLCALL SDL_lroundf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_scalbnf
  * \sa SDL_pow
@@ -2718,7 +3995,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_scalbn(double x, int n);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_scalbn
  * \sa SDL_powf
@@ -2745,7 +4022,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_scalbnf(float x, int n);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_sinf
  * \sa SDL_asin
@@ -2773,7 +4050,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_sin(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_sin
  * \sa SDL_asinf
@@ -2801,7 +4078,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_sinf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_sqrtf
  */
@@ -2827,7 +4104,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_sqrt(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_sqrt
  */
@@ -2853,7 +4130,7 @@ extern SDL_DECLSPEC float SDLCALL SDL_sqrtf(float x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_tanf
  * \sa SDL_sin
@@ -2883,7 +4160,7 @@ extern SDL_DECLSPEC double SDLCALL SDL_tan(double x);
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_tan
  * \sa SDL_sinf
@@ -2910,7 +4187,7 @@ typedef struct SDL_iconv_data_t *SDL_iconv_t;
  * \returns a handle that must be freed with SDL_iconv_close, or
  *          SDL_ICONV_ERROR on failure.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_iconv
  * \sa SDL_iconv_close
@@ -2925,7 +4202,7 @@ extern SDL_DECLSPEC SDL_iconv_t SDLCALL SDL_iconv_open(const char *tocode,
  * \param cd The character set conversion handle.
  * \returns 0 on success, or -1 on failure.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_iconv
  * \sa SDL_iconv_open
@@ -2962,7 +4239,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_iconv_close(SDL_iconv_t cd);
  *            the location where to store the next output byte. - outbytesleft
  *            will be set to the number of bytes left in the output buffer.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_iconv_open
  * \sa SDL_iconv_close
@@ -2991,7 +4268,7 @@ extern SDL_DECLSPEC size_t SDLCALL SDL_iconv(SDL_iconv_t cd, const char **inbuf,
  * \param inbytesleft the size of the input string _in bytes_.
  * \returns a new string, converted to the new encoding, or NULL on error.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  *
  * \sa SDL_iconv_open
  * \sa SDL_iconv_close
@@ -3029,6 +4306,9 @@ size_t wcslcpy(wchar_t *dst, const wchar_t *src, size_t size);
 #if !defined(HAVE_WCSLCAT) && !defined(wcslcat)
 size_t wcslcat(wchar_t *dst, const wchar_t *src, size_t size);
 #endif
+
+/* strdup is not ANSI but POSIX, and its prototype might be hidden... */
+char *strdup(const char *str);
 
 /* Starting LLVM 16, the analyser errors out if these functions do not have
    their prototype defined (clang-diagnostic-implicit-function-declaration) */
@@ -3069,6 +4349,7 @@ size_t wcslcat(wchar_t *dst, const wchar_t *src, size_t size);
 #define SDL_wcsncmp wcsncmp
 #define SDL_strcasecmp strcasecmp
 #define SDL_strncasecmp strncasecmp
+#define SDL_strpbrk strpbrk
 #define SDL_sscanf sscanf
 #define SDL_vsscanf vsscanf
 #define SDL_snprintf snprintf
@@ -3078,29 +4359,27 @@ size_t wcslcat(wchar_t *dst, const wchar_t *src, size_t size);
 /**
  * Multiply two integers, checking for overflow.
  *
- * If `a * b` would overflow, return -1.
+ * If `a * b` would overflow, return false.
  *
- * Otherwise store `a * b` via ret and return 0.
+ * Otherwise store `a * b` via ret and return true.
  *
  * \param a the multiplicand.
  * \param b the multiplier.
- * \param ret on non-overflow output, stores the multiplication result. May
+ * \param ret on non-overflow output, stores the multiplication result, may
  *            not be NULL.
- * \returns -1 on overflow, 0 if result doesn't overflow.
+ * \returns false on overflow, true if result is multiplied without overflow.
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
-SDL_FORCE_INLINE int SDL_size_mul_overflow (size_t a,
-                                            size_t b,
-                                            size_t *ret)
+SDL_FORCE_INLINE bool SDL_size_mul_check_overflow(size_t a, size_t b, size_t *ret)
 {
     if (a != 0 && b > SDL_SIZE_MAX / a) {
-        return -1;
+        return false;
     }
     *ret = a * b;
-    return 0;
+    return true;
 }
 
 #ifndef SDL_WIKI_DOCUMENTATION_SECTION
@@ -3108,13 +4387,11 @@ SDL_FORCE_INLINE int SDL_size_mul_overflow (size_t a,
 /* This needs to be wrapped in an inline rather than being a direct #define,
  * because __builtin_mul_overflow() is type-generic, but we want to be
  * consistent about interpreting a and b as size_t. */
-SDL_FORCE_INLINE int SDL_size_mul_overflow_builtin (size_t a,
-                                                     size_t b,
-                                                     size_t *ret)
+SDL_FORCE_INLINE bool SDL_size_mul_check_overflow_builtin(size_t a, size_t b, size_t *ret)
 {
-    return __builtin_mul_overflow(a, b, ret) == 0 ? 0 : -1;
+    return (__builtin_mul_overflow(a, b, ret) == 0);
 }
-#define SDL_size_mul_overflow(a, b, ret) (SDL_size_mul_overflow_builtin(a, b, ret))
+#define SDL_size_mul_check_overflow(a, b, ret) SDL_size_mul_check_overflow_builtin(a, b, ret)
 #endif
 #endif
 
@@ -3127,41 +4404,55 @@ SDL_FORCE_INLINE int SDL_size_mul_overflow_builtin (size_t a,
  *
  * \param a the first addend.
  * \param b the second addend.
- * \param ret on non-overflow output, stores the addition result. May not be
+ * \param ret on non-overflow output, stores the addition result, may not be
  *            NULL.
- * \returns -1 on overflow, 0 if result doesn't overflow.
+ * \returns false on overflow, true if result is added without overflow.
  *
  * \threadsafety It is safe to call this function from any thread.
  *
- * \since This function is available since SDL 3.0.0.
+ * \since This function is available since SDL 3.1.3.
  */
-SDL_FORCE_INLINE int SDL_size_add_overflow (size_t a,
-                                            size_t b,
-                                            size_t *ret)
+SDL_FORCE_INLINE bool SDL_size_add_check_overflow(size_t a, size_t b, size_t *ret)
 {
     if (b > SDL_SIZE_MAX - a) {
-        return -1;
+        return false;
     }
     *ret = a + b;
-    return 0;
+    return true;
 }
 
 #ifndef SDL_WIKI_DOCUMENTATION_SECTION
 #if SDL_HAS_BUILTIN(__builtin_add_overflow)
 /* This needs to be wrapped in an inline rather than being a direct #define,
  * the same as the call to __builtin_mul_overflow() above. */
-SDL_FORCE_INLINE int SDL_size_add_overflow_builtin (size_t a,
-                                                     size_t b,
-                                                     size_t *ret)
+SDL_FORCE_INLINE bool SDL_size_add_check_overflow_builtin(size_t a, size_t b, size_t *ret)
 {
-    return __builtin_add_overflow(a, b, ret) == 0 ? 0 : -1;
+    return (__builtin_add_overflow(a, b, ret) == 0);
 }
-#define SDL_size_add_overflow(a, b, ret) (SDL_size_add_overflow_builtin(a, b, ret))
+#define SDL_size_add_check_overflow(a, b, ret) SDL_size_add_check_overflow_builtin(a, b, ret)
 #endif
 #endif
 
 /* This is a generic function pointer which should be cast to the type you expect */
-#ifdef SDL_FUNCTION_POINTER_IS_VOID_POINTER
+#ifdef SDL_WIKI_DOCUMENTATION_SECTION
+
+/**
+ * A generic function pointer.
+ *
+ * In theory, generic function pointers should use this, instead of `void *`,
+ * since some platforms could treat code addresses differently than data
+ * addresses. Although in current times no popular platforms make this
+ * distinction, it is more correct and portable to use the correct type for a
+ * generic pointer.
+ *
+ * If for some reason you need to force this typedef to be an actual `void *`,
+ * perhaps to work around a compiler or existing code, you can define
+ * `SDL_FUNCTION_POINTER_IS_VOID_POINTER` before including any SDL headers.
+ *
+ * \since This datatype is available since SDL 3.1.3.
+ */
+typedef void (*SDL_FunctionPointer)(void);
+#elif defined(SDL_FUNCTION_POINTER_IS_VOID_POINTER)
 typedef void *SDL_FunctionPointer;
 #else
 typedef void (*SDL_FunctionPointer)(void);

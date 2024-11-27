@@ -24,7 +24,6 @@
 #ifndef SDL_pen_c_h_
 #define SDL_pen_c_h_
 
-#include "../../include/SDL3/SDL_pen.h"
 #include "SDL_mouse_c.h"
 
 typedef Uint32 SDL_PenCapabilityFlags;
@@ -68,32 +67,30 @@ extern void SDL_RemovePenDevice(Uint64 timestamp, SDL_PenID instance_id);
 extern void SDL_RemoveAllPenDevices(void (*callback)(SDL_PenID instance_id, void *handle, void *userdata), void *userdata);
 
 // Backend calls this when a pen's button changes, to generate events and update state.
-extern int SDL_SendPenTouch(Uint64 timestamp, SDL_PenID instance_id, const SDL_Window *window, Uint8 state, Uint8 eraser);
+extern void SDL_SendPenTouch(Uint64 timestamp, SDL_PenID instance_id, const SDL_Window *window, bool eraser, bool down);
 
 // Backend calls this when a pen moves on the tablet, to generate events and update state.
-extern int SDL_SendPenMotion(Uint64 timestamp, SDL_PenID instance_id, const SDL_Window *window, float x, float y);
+extern void SDL_SendPenMotion(Uint64 timestamp, SDL_PenID instance_id, const SDL_Window *window, float x, float y);
 
 // Backend calls this when a pen's axis changes, to generate events and update state.
-extern int SDL_SendPenAxis(Uint64 timestamp, SDL_PenID instance_id, const SDL_Window *window, SDL_PenAxis axis, float value);
+extern void SDL_SendPenAxis(Uint64 timestamp, SDL_PenID instance_id, const SDL_Window *window, SDL_PenAxis axis, float value);
 
 // Backend calls this when a pen's button changes, to generate events and update state.
-extern int SDL_SendPenButton(Uint64 timestamp, SDL_PenID instance_id, const SDL_Window *window, Uint8 state, Uint8 button);
+extern void SDL_SendPenButton(Uint64 timestamp, SDL_PenID instance_id, const SDL_Window *window, Uint8 button, bool down);
 
 // Backend can optionally use this to find the SDL_PenID for the `handle` that was passed to SDL_AddPenDevice.
 extern SDL_PenID SDL_FindPenByHandle(void *handle);
 
 // Backend can optionally use this to find a SDL_PenID, selected by a callback examining all devices. Zero if not found.
-extern SDL_PenID SDL_FindPenByCallback(SDL_bool (*callback)(void *handle, void *userdata), void *userdata);
+extern SDL_PenID SDL_FindPenByCallback(bool (*callback)(void *handle, void *userdata), void *userdata);
 
 // Backend can use this to map an axis to a capability bit.
 SDL_PenCapabilityFlags SDL_GetPenCapabilityFromAxis(SDL_PenAxis axis);
 
 // Higher-level SDL video subsystem code calls this when starting up. Backends shouldn't.
-extern int SDL_InitPen(void);
+extern bool SDL_InitPen(void);
 
 // Higher-level SDL video subsystem code calls this when shutting down. Backends shouldn't.
 extern void SDL_QuitPen(void);
 
-#endif /* SDL_pen_c_h_ */
-
-/* vi: set ts=4 sw=4 expandtab: */
+#endif // SDL_pen_c_h_

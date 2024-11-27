@@ -15,7 +15,7 @@
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_test.h>
 
-static int SDLCALL enum_callback(void *userdata, const char *origdir, const char *fname)
+static SDL_EnumerationResult SDLCALL enum_callback(void *userdata, const char *origdir, const char *fname)
 {
     SDL_PathInfo info;
     char *fullpath = NULL;
@@ -29,10 +29,10 @@ static int SDLCALL enum_callback(void *userdata, const char *origdir, const char
 
     if (SDL_asprintf(&fullpath, "%s%s%s", origdir, *origdir ? pathsep : "", fname) < 0) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Out of memory!");
-        return -1;
+        return SDL_ENUM_FAILURE;
     }
 
-    if (SDL_GetPathInfo(fullpath, &info) < 0) {
+    if (!SDL_GetPathInfo(fullpath, &info)) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't stat '%s': %s", fullpath, SDL_GetError());
     } else {
         const char *type;
@@ -47,14 +47,14 @@ static int SDLCALL enum_callback(void *userdata, const char *origdir, const char
                 fullpath, type, info.size, info.modify_time, info.create_time, info.access_time);
 
         if (info.type == SDL_PATHTYPE_DIRECTORY) {
-            if (SDL_EnumerateDirectory(fullpath, enum_callback, userdata) < 0) {
+            if (!SDL_EnumerateDirectory(fullpath, enum_callback, userdata)) {
                 SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Enumeration failed!");
             }
         }
     }
 
     SDL_free(fullpath);
-    return 1;  /* keep going */
+    return SDL_ENUM_CONTINUE;  /* keep going */
 }
 
 
@@ -70,15 +70,12 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    /* Enable standard application logging */
-    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_INFO);
-
     /* Parse commandline */
     if (!SDLTest_CommonDefaultArgs(state, argc, argv)) {
         return 1;
     }
 
-    if (SDL_Init(0) == -1) {
+    if (!SDL_Init(0)) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Init() failed: %s\n", SDL_GetError());
         return 1;
     }
@@ -114,7 +111,7 @@ int main(int argc, char *argv[])
         SDL_IOStream *stream;
         const char *text = "foo\n";
 
-        if (SDL_EnumerateDirectory(base_path, enum_callback, NULL) < 0) {
+        if (!SDL_EnumerateDirectory(base_path, enum_callback, NULL)) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Base path enumeration failed!");
         }
 
@@ -130,19 +127,29 @@ int main(int argc, char *argv[])
         }
 
         /* !!! FIXME: put this in a subroutine and make it test more thoroughly (and put it in testautomation). */
-        if (SDL_CreateDirectory("testfilesystem-test") == -1) {
+        if (!SDL_CreateDirectory("testfilesystem-test")) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateDirectory('testfilesystem-test') failed: %s", SDL_GetError());
-        } else if (SDL_CreateDirectory("testfilesystem-test/1") == -1) {
+        } else if (!SDL_CreateDirectory("testfilesystem-test/1")) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateDirectory('testfilesystem-test/1') failed: %s", SDL_GetError());
-        } else if (SDL_CreateDirectory("testfilesystem-test/1") == -1) {  /* THIS SHOULD NOT FAIL! Making a directory that already exists should succeed here. */
+        } else if (!SDL_CreateDirectory("testfilesystem-test/1")) {  /* THIS SHOULD NOT FAIL! Making a directory that already exists should succeed here. */
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateDirectory('testfilesystem-test/1') failed: %s", SDL_GetError());
-        } else if (SDL_RenamePath("testfilesystem-test/1", "testfilesystem-test/2") == -1) {
+        } else if (!SDL_CreateDirectory("testfilesystem-test/3/4/5/6")) {  /* THIS SHOULD NOT FAIL! Making a directory with missing parents succeed here. */
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateDirectory('testfilesystem-test/3/4/5/6') failed: %s", SDL_GetError());
+        } else if (!SDL_RemovePath("testfilesystem-test/3/4/5/6")) {  /* THIS SHOULD NOT FAIL! Making a directory with missing parents succeed here. */
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_RemovePath('testfilesystem-test/3/4/5/6') failed: %s", SDL_GetError());
+        } else if (!SDL_RemovePath("testfilesystem-test/3/4/5")) {  /* THIS SHOULD NOT FAIL! Making a directory with missing parents succeed here. */
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_RemovePath('testfilesystem-test/3/4/5') failed: %s", SDL_GetError());
+        } else if (!SDL_RemovePath("testfilesystem-test/3/4")) {  /* THIS SHOULD NOT FAIL! Making a directory with missing parents succeed here. */
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_RemovePath('testfilesystem-test/3/4') failed: %s", SDL_GetError());
+        } else if (!SDL_RemovePath("testfilesystem-test/3")) {  /* THIS SHOULD NOT FAIL! Making a directory with missing parents succeed here. */
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_RemovePath('testfilesystem-test/3') failed: %s", SDL_GetError());
+        } else if (!SDL_RenamePath("testfilesystem-test/1", "testfilesystem-test/2")) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_RenamePath('testfilesystem-test/1', 'testfilesystem-test/2') failed: %s", SDL_GetError());
-        } else if (SDL_RemovePath("testfilesystem-test/2") == -1) {
+        } else if (!SDL_RemovePath("testfilesystem-test/2")) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_RemovePath('testfilesystem-test/2') failed: %s", SDL_GetError());
-        } else if (SDL_RemovePath("testfilesystem-test") == -1) {
+        } else if (!SDL_RemovePath("testfilesystem-test")) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_RemovePath('testfilesystem-test') failed: %s", SDL_GetError());
-        } else if (SDL_RemovePath("testfilesystem-test") == -1) {  /* THIS SHOULD NOT FAIL! Removing a directory that is already gone should succeed here. */
+        } else if (!SDL_RemovePath("testfilesystem-test")) {  /* THIS SHOULD NOT FAIL! Removing a directory that is already gone should succeed here. */
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_RemovePath('testfilesystem-test') failed: %s", SDL_GetError());
         }
 
@@ -151,9 +158,9 @@ int main(int argc, char *argv[])
             SDL_WriteIO(stream, text, SDL_strlen(text));
             SDL_CloseIO(stream);
 
-            if (SDL_RenamePath("testfilesystem-A", "testfilesystem-B") < 0) {
+            if (!SDL_RenamePath("testfilesystem-A", "testfilesystem-B")) {
                 SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_RenamePath('testfilesystem-A', 'testfilesystem-B') failed: %s", SDL_GetError());
-            } else if (SDL_CopyFile("testfilesystem-B", "testfilesystem-A") < 0) {
+            } else if (!SDL_CopyFile("testfilesystem-B", "testfilesystem-A")) {
                 SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CopyFile('testfilesystem-B', 'testfilesystem-A') failed: %s", SDL_GetError());
             } else {
                 size_t sizeA, sizeB;
@@ -172,10 +179,10 @@ int main(int argc, char *argv[])
                 SDL_free(textB);
             }
 
-            if (SDL_RemovePath("testfilesystem-A") < 0) {
+            if (!SDL_RemovePath("testfilesystem-A")) {
                 SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_RemovePath('testfilesystem-A') failed: %s", SDL_GetError());
             }
-            if (SDL_RemovePath("testfilesystem-B") < 0) {
+            if (!SDL_RemovePath("testfilesystem-B")) {
                 SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_RemovePath('testfilesystem-B') failed: %s", SDL_GetError());
             }
         } else {

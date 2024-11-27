@@ -19,12 +19,12 @@ typedef struct Pen
 {
     SDL_PenID pen;
     Uint8 r, g, b;
-    float axes[SDL_PEN_NUM_AXES];
+    float axes[SDL_PEN_AXIS_COUNT];
     float x;
     float y;
     Uint32 buttons;
-    SDL_bool eraser;
-    SDL_bool touching;
+    bool eraser;
+    bool touching;
     struct Pen *next;
 } Pen;
 
@@ -34,7 +34,7 @@ static SDL_Texture *white_pixel = NULL;
 static Pen pens;
 
 
-int SDL_AppInit(void **appstate, int argc, char *argv[])
+SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 {
     int i;
 
@@ -45,9 +45,6 @@ int SDL_AppInit(void **appstate, int argc, char *argv[])
     if (!state) {
         return SDL_APP_FAILURE;
     }
-
-    /* Enable standard application logging */
-    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_INFO);
 
     /* Parse commandline */
     for (i = 1; i < argc;) {
@@ -107,7 +104,7 @@ static Pen *FindPen(SDL_PenID which)
     return NULL;
 }
 
-int SDL_AppEvent(void *appstate, const SDL_Event *event)
+SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
 {
     Pen *pen = NULL;
 
@@ -153,7 +150,7 @@ int SDL_AppEvent(void *appstate, const SDL_Event *event)
             /*SDL_Log("Pen %" SDL_PRIu32 " down!", event->ptouch.which);*/
             pen = FindPen(event->ptouch.which);
             if (pen) {
-                pen->touching = SDL_TRUE;
+                pen->touching = true;
                 pen->eraser = (event->ptouch.eraser != 0);
             }
             return SDL_APP_CONTINUE;
@@ -162,7 +159,7 @@ int SDL_AppEvent(void *appstate, const SDL_Event *event)
             /*SDL_Log("Pen %" SDL_PRIu32 " up!", event->ptouch.which);*/
             pen = FindPen(event->ptouch.which);
             if (pen) {
-                pen->touching = SDL_FALSE;
+                pen->touching = false;
                 pen->axes[SDL_PEN_AXIS_PRESSURE] = 0.0f;
             }
             return SDL_APP_CONTINUE;
@@ -259,7 +256,7 @@ static void DrawOnePen(Pen *pen, int num)
     }
 }
 
-int SDL_AppIterate(void *appstate)
+SDL_AppResult SDL_AppIterate(void *appstate)
 {
     int num = 0;
     Pen *pen;
@@ -276,7 +273,7 @@ int SDL_AppIterate(void *appstate)
     return SDL_APP_CONTINUE;
 }
 
-void SDL_AppQuit(void *appstate)
+void SDL_AppQuit(void *appstate, SDL_AppResult result)
 {
     Pen *i, *next;
     for (i = pens.next; i != NULL; i = next) {

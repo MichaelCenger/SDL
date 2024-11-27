@@ -25,6 +25,7 @@
 
 typedef enum SDL_EventCategory
 {
+    SDL_EVENTCATEGORY_UNKNOWN,
     SDL_EVENTCATEGORY_SYSTEM,
     SDL_EVENTCATEGORY_DISPLAY,
     SDL_EVENTCATEGORY_WINDOW,
@@ -61,8 +62,9 @@ typedef enum SDL_EventCategory
     SDL_EVENTCATEGORY_PAXIS,
     SDL_EVENTCATEGORY_DROP,
     SDL_EVENTCATEGORY_CLIPBOARD,
+    SDL_EVENTCATEGORY_RENDER,
 } SDL_EventCategory;
 
 extern SDL_EventCategory SDL_GetEventCategory(Uint32 type);
 
-#endif /* SDL_categories_c_h_ */
+#endif // SDL_categories_c_h_

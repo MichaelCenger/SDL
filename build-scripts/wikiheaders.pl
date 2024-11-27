@@ -276,14 +276,14 @@ sub wikify_chunk {
             $codedstr .= wikify_chunk($wikitype, $1, undef, undef);
             if (defined $apiprefixregex) {
                 # Convert obvious API things to wikilinks, even inside `code` blocks.
-                $codeblock =~ s/\b($apiprefixregex[a-zA-Z0-9_]+)/[[$1]]/gms;
+                $codeblock =~ s/(\A|[^\/a-zA-Z0-9_])($apiprefixregex[a-zA-Z0-9_]+)/$1\[\[$2\]\]/gms;
             }
             $codedstr .= "<code>$codeblock</code>";
         }
 
         # Convert obvious API things to wikilinks.
         if (defined $apiprefixregex) {
-            $str =~ s/\b($apiprefixregex[a-zA-Z0-9_]+)/[[$1]]/gms;
+            $str =~ s/(\A|[^\/a-zA-Z0-9_])($apiprefixregex[a-zA-Z0-9_]+)/$1\[\[$2\]\]/gms;
         }
 
         # Make some Markdown things into MediaWiki...
@@ -328,7 +328,7 @@ sub wikify_chunk {
 
         # Convert obvious API things to wikilinks.
         if (defined $apiprefixregex) {
-            $str =~ s/\b($apiprefixregex[a-zA-Z0-9_]+)/[$1]($1)/gms;
+            $str =~ s/(\A|[^\/a-zA-Z0-9_])($apiprefixregex[a-zA-Z0-9_]+)/$1\[$2\]\($2\)/gms;
         }
 
         $str = $codedstr . $str;
@@ -1128,14 +1128,16 @@ while (my $d = readdir(DH)) {
             }
 
             # This block attempts to find the whole struct/union/enum definition by counting matching brackets. Kind of yucky.
+            # It also "parses" enums enough to find out the elements of it.
             if ($has_definition) {
                 my $started = 0;
                 my $brackets = 0;
                 my $pending = $decl;
+                my $skipping_comment = 0;
 
                 $decl = '';
                 while (!$started || ($brackets != 0)) {
-                    foreach my $seg (split(/([{}])/, $pending)) {
+                    foreach my $seg (split(/([{}])/, $pending)) {   # (this will pick up brackets in comments! Be careful!)
                         $decl .= $seg;
                         if ($seg eq '{') {
                             $started = 1;
@@ -1143,6 +1145,25 @@ while (my $d = readdir(DH)) {
                         } elsif ($seg eq '}') {
                             die("Something is wrong with header $incpath/$dent while parsing $sym; is a bracket missing?\n") if ($brackets <= 0);
                             $brackets--;
+                        }
+                    }
+
+                    if ($skipping_comment) {
+                        if ($pending =~ s/\A.*?\*\///) {
+                            $skipping_comment = 0;
+                        }
+                    }
+
+                    if (!$skipping_comment && $started && ($symtype == 4)) {  # Pick out elements of an enum.
+                        my $stripped = "$pending";
+                        $stripped =~ s/\/\*.*?\*\///g;  # dump /* comments */ that exist fully on one line.
+                        if ($stripped =~ /\/\*/) {  # uhoh, a /* comment */ that crosses newlines.
+                            $skipping_comment = 1;
+                        } elsif ($stripped =~ /\A\s*([a-zA-Z0-9_]+)(.*)\Z/) {  #\s*(\=\s*.*?|)\s*,?(.*?)\Z/) {
+                            if ($1 ne 'typedef') {  # make sure we didn't just eat the first line by accident.  :/
+                                #print("ENUM [$1] $incpath/$dent:$lineno\n");
+                                $referenceonly{$1} = $sym;
+                            }
                         }
                     }
 
@@ -1839,6 +1860,7 @@ if ($copy_direction == 1) {  # --copy-to-headers
         my @paramsorder = ();
         my $fnsigparams = $headersymsparaminfo{$sym};
         my $has_returns = 0;
+        my $has_threadsafety = 0;
 
         while (@doxygenlines) {
             my $l = shift @doxygenlines;
@@ -1977,6 +1999,7 @@ if ($copy_direction == 1) {  # --copy-to-headers
                 }
                 $desc =~ s/[\s\n]+\Z//ms;
                 $sections{'Thread Safety'} = wordwrap(wikify($wikitype, $desc)) . "\n";
+                $has_threadsafety = 1;
             } elsif ($l =~ /\A\\sa\s+(.*)\Z/) {
                 my $sa = $1;
                 $sa =~ s/\(\)\Z//;  # Convert "SDL_Func()" to "SDL_Func"
@@ -1992,6 +2015,11 @@ if ($copy_direction == 1) {  # --copy-to-headers
         if (($symtype == 1) && ($headersymsrettype{$sym} ne 'void') && !$has_returns) {
             print STDERR "WARNING: Function '$sym' has a non-void return type but no '\\returns' declaration\n";
         }
+
+        # !!! FIXME: uncomment this when we're trying to clean this up in the headers.
+        #if (($symtype == 1) && !$has_threadsafety) {
+        #    print STDERR "WARNING: Function '$sym' doesn't have a '\\threadsafety' declaration\n";
+        #}
 
         # Make sure %params is in the same order as the actual function signature and add C datatypes...
         my $params_has_c_datatype = 0;
@@ -2271,9 +2299,14 @@ if ($copy_direction == 1) {  # --copy-to-headers
             print FH "###### $wikified_preamble\n";
         }
 
+        my $category = 'CategoryAPIMacro';
+        if ($headersymstype{$refersto} == 4) {
+            $category = 'CategoryAPIEnumerators';  # NOT CategoryAPIEnum!
+        }
+
         print FH "# $sym\n\nPlease refer to [$refersto]($refersto) for details.\n\n";
         print FH "----\n";
-        print FH "[CategoryAPI](CategoryAPI), [CategoryAPIMacro](CategoryAPIMacro)\n\n";
+        print FH "[CategoryAPI](CategoryAPI), [$category]($category)\n\n";
 
         close(FH);
     }

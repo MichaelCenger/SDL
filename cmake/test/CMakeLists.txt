@@ -1,7 +1,7 @@
 # This cmake build script is meant for verifying the various CMake configuration scripts.
 
 cmake_minimum_required(VERSION 3.12)
-project(sdl_test LANGUAGES C)
+project(SDL_cmake_selftest LANGUAGES C)
 
 include(CheckLanguage)
 
@@ -20,12 +20,6 @@ endif()
 
 message(STATUS "CMAKE_SYSTEM_NAME=      ${CMAKE_SYSTEM_NAME}")
 message(STATUS "CMAKE_SYSTEM_PROCESSOR= ${CMAKE_SYSTEM_PROCESSOR}")
-
-if(WINDOWS_STORE)
-    enable_language(CXX)
-    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/ZW>")
-    set_source_files_properties(ain_cli.c main_gui.c PROPERTIES LANGUAGE CXX)
-endif()
 
 include(GenerateExportHeader)
 

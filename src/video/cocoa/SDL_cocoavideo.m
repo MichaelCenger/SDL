@@ -40,11 +40,11 @@
 
 @end
 
-/* Initialization/Query functions */
-static int Cocoa_VideoInit(SDL_VideoDevice *_this);
+// Initialization/Query functions
+static bool Cocoa_VideoInit(SDL_VideoDevice *_this);
 static void Cocoa_VideoQuit(SDL_VideoDevice *_this);
 
-/* Cocoa driver bootstrap functions */
+// Cocoa driver bootstrap functions
 
 static void Cocoa_DeleteDevice(SDL_VideoDevice *device)
 {
@@ -63,9 +63,13 @@ static SDL_VideoDevice *Cocoa_CreateDevice(void)
         SDL_VideoDevice *device;
         SDL_CocoaVideoData *data;
 
+        if (![NSThread isMainThread]) {
+            return NULL;  // this doesn't SDL_SetError() because SDL_VideoInit is just going to overwrite it.
+        }
+
         Cocoa_RegisterApp();
 
-        /* Initialize all variables that we clean on shutdown */
+        // Initialize all variables that we clean on shutdown
         device = (SDL_VideoDevice *)SDL_calloc(1, sizeof(SDL_VideoDevice));
         if (device) {
             data = [[SDL_CocoaVideoData alloc] init];
@@ -80,7 +84,7 @@ static SDL_VideoDevice *Cocoa_CreateDevice(void)
         device->wakeup_lock = SDL_CreateMutex();
         device->system_theme = Cocoa_GetSystemTheme();
 
-        /* Set the function pointers */
+        // Set the function pointers
         device->VideoInit = Cocoa_VideoInit;
         device->VideoQuit = Cocoa_VideoQuit;
         device->GetDisplayBounds = Cocoa_GetDisplayBounds;
@@ -122,7 +126,8 @@ static SDL_VideoDevice *Cocoa_CreateDevice(void)
         device->UpdateWindowShape = Cocoa_UpdateWindowShape;
         device->FlashWindow = Cocoa_FlashWindow;
         device->SetWindowFocusable = Cocoa_SetWindowFocusable;
-        device->SetWindowModalFor = Cocoa_SetWindowModalFor;
+        device->SetWindowParent = Cocoa_SetWindowParent;
+        device->SetWindowModal = Cocoa_SetWindowModal;
         device->SyncWindow = Cocoa_SyncWindow;
 
 #ifdef SDL_VIDEO_OPENGL_CGL
@@ -134,12 +139,12 @@ static SDL_VideoDevice *Cocoa_CreateDevice(void)
         device->GL_SetSwapInterval = Cocoa_GL_SetSwapInterval;
         device->GL_GetSwapInterval = Cocoa_GL_GetSwapInterval;
         device->GL_SwapWindow = Cocoa_GL_SwapWindow;
-        device->GL_DeleteContext = Cocoa_GL_DeleteContext;
+        device->GL_DestroyContext = Cocoa_GL_DestroyContext;
         device->GL_GetEGLSurface = NULL;
 #endif
 #ifdef SDL_VIDEO_OPENGL_EGL
 #ifdef SDL_VIDEO_OPENGL_CGL
-        if (SDL_GetHintBoolean(SDL_HINT_VIDEO_FORCE_EGL, SDL_FALSE)) {
+        if (SDL_GetHintBoolean(SDL_HINT_VIDEO_FORCE_EGL, false)) {
 #endif
             device->GL_LoadLibrary = Cocoa_GLES_LoadLibrary;
             device->GL_GetProcAddress = Cocoa_GLES_GetProcAddress;
@@ -149,7 +154,7 @@ static SDL_VideoDevice *Cocoa_CreateDevice(void)
             device->GL_SetSwapInterval = Cocoa_GLES_SetSwapInterval;
             device->GL_GetSwapInterval = Cocoa_GLES_GetSwapInterval;
             device->GL_SwapWindow = Cocoa_GLES_SwapWindow;
-            device->GL_DeleteContext = Cocoa_GLES_DeleteContext;
+            device->GL_DestroyContext = Cocoa_GLES_DestroyContext;
             device->GL_GetEGLSurface = Cocoa_GLES_GetEGLSurface;
 #ifdef SDL_VIDEO_OPENGL_CGL
         }
@@ -192,33 +197,34 @@ VideoBootStrap COCOA_bootstrap = {
     Cocoa_ShowMessageBox
 };
 
-int Cocoa_VideoInit(SDL_VideoDevice *_this)
+static bool Cocoa_VideoInit(SDL_VideoDevice *_this)
 {
     @autoreleasepool {
         SDL_CocoaVideoData *data = (__bridge SDL_CocoaVideoData *)_this->internal;
 
         Cocoa_InitModes(_this);
         Cocoa_InitKeyboard(_this);
-        if (Cocoa_InitMouse(_this) < 0) {
-            return -1;
-        } else if (Cocoa_InitPen(_this) < 0) {
-            return -1;
+        if (!Cocoa_InitMouse(_this)) {
+            return false;
+        }
+        if (!Cocoa_InitPen(_this)) {
+            return false;
         }
 
         // Assume we have a mouse and keyboard
         // We could use GCMouse and GCKeyboard if we needed to, as is done in SDL_uikitevents.m
-        SDL_AddKeyboard(SDL_DEFAULT_KEYBOARD_ID, NULL, SDL_FALSE);
-        SDL_AddMouse(SDL_DEFAULT_MOUSE_ID, NULL, SDL_FALSE);
+        SDL_AddKeyboard(SDL_DEFAULT_KEYBOARD_ID, NULL, false);
+        SDL_AddMouse(SDL_DEFAULT_MOUSE_ID, NULL, false);
 
-        data.allow_spaces = SDL_GetHintBoolean(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, SDL_TRUE);
-        data.trackpad_is_touch_only = SDL_GetHintBoolean(SDL_HINT_TRACKPAD_IS_TOUCH_ONLY, SDL_FALSE);
+        data.allow_spaces = SDL_GetHintBoolean(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, true);
+        data.trackpad_is_touch_only = SDL_GetHintBoolean(SDL_HINT_TRACKPAD_IS_TOUCH_ONLY, false);
 
         data.swaplock = SDL_CreateMutex();
         if (!data.swaplock) {
-            return -1;
+            return false;
         }
 
-        return 0;
+        return true;
     }
 }
 
@@ -235,10 +241,10 @@ void Cocoa_VideoQuit(SDL_VideoDevice *_this)
     }
 }
 
-/* This function assumes that it's called from within an autorelease pool */
+// This function assumes that it's called from within an autorelease pool
 SDL_SystemTheme Cocoa_GetSystemTheme(void)
 {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101400 /* Added in the 10.14.0 SDK. */
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101400 // Added in the 10.14.0 SDK.
     if ([[NSApplication sharedApplication] respondsToSelector:@selector(effectiveAppearance)]) {
         NSAppearance* appearance = [[NSApplication sharedApplication] effectiveAppearance];
 
@@ -250,7 +256,7 @@ SDL_SystemTheme Cocoa_GetSystemTheme(void)
     return SDL_SYSTEM_THEME_LIGHT;
 }
 
-/* This function assumes that it's called from within an autorelease pool */
+// This function assumes that it's called from within an autorelease pool
 NSImage *Cocoa_CreateImage(SDL_Surface *surface)
 {
     NSImage *img;
@@ -272,8 +278,8 @@ NSImage *Cocoa_CreateImage(SDL_Surface *surface)
             return nil;
         }
 
-        /* Premultiply the alpha channel */
-        SDL_PremultiplySurfaceAlpha(converted, SDL_FALSE);
+        // Premultiply the alpha channel
+        SDL_PremultiplySurfaceAlpha(converted, false);
 
         NSBitmapImageRep *imgrep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
                                                                            pixelsWide:converted->w
@@ -291,12 +297,12 @@ NSImage *Cocoa_CreateImage(SDL_Surface *surface)
             return nil;
         }
 
-        /* Copy the pixels */
+        // Copy the pixels
         Uint8 *pixels = [imgrep bitmapData];
         SDL_memcpy(pixels, converted->pixels, (size_t)converted->h * converted->pitch);
         SDL_DestroySurface(converted);
 
-        /* Add the image representation */
+        // Add the image representation
         [img addRepresentation:imgrep];
     }
     SDL_free(images);
@@ -327,4 +333,4 @@ void SDL_NSLog(const char *prefix, const char *text)
     }
 }
 
-#endif /* SDL_VIDEO_DRIVER_COCOA */
+#endif // SDL_VIDEO_DRIVER_COCOA

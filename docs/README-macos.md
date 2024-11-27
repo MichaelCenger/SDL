@@ -13,7 +13,7 @@ To build SDL using the command line, use the CMake build script:
 ```bash
 mkdir build
 cd build
-cmake ..
+cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET=10.11
 cmake --build .
 sudo cmake --install .
 ```
@@ -25,7 +25,7 @@ You can also build SDL as a Universal library (a single binary for both
 ```bash
 mkdir build
 cd build
-cmake .. "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
+cmake .. "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.11
 cmake --build .
 sudo cmake --install .
 ```
@@ -54,6 +54,7 @@ NSApplicationDelegate implementation:
 {
     if (SDL_GetEventState(SDL_EVENT_QUIT) == SDL_ENABLE) {
         SDL_Event event;
+        SDL_zero(event);
         event.type = SDL_EVENT_QUIT;
         SDL_PushEvent(&event);
     }
@@ -65,9 +66,10 @@ NSApplicationDelegate implementation:
 {
     if (SDL_GetEventState(SDL_EVENT_DROP_FILE) == SDL_ENABLE) {
         SDL_Event event;
+        SDL_zero(event);
         event.type = SDL_EVENT_DROP_FILE;
         event.drop.file = SDL_strdup([filename UTF8String]);
-        return (SDL_PushEvent(&event) > 0);
+        return SDL_PushEvent(&event);
     }
 
     return NO;
