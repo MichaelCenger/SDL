@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2024 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -156,11 +156,6 @@ static void Android_OnResume(void)
     }
 #endif
 
-    // Make sure SW Keyboard is restored when an app becomes foreground
-    if (Android_Window) {
-        Android_RestoreScreenKeyboardOnResume(SDL_GetVideoDevice(), Android_Window);
-    }
-
     SDL_OnApplicationDidEnterForeground();
 }
 
@@ -248,6 +243,12 @@ void Android_PumpEvents(Sint64 timeoutNS)
 
 bool Android_WaitActiveAndLockActivity(void)
 {
+    /* Make sure we have pumped all events so that Android_Paused state is correct */
+    SDL_AndroidLifecycleEvent event;
+    while (!Android_Destroyed && Android_WaitLifecycleEvent(&event, 0)) {
+        Android_HandleLifecycleEvent(event);
+    }
+
     while (Android_Paused && !Android_Destroyed) {
         Android_PumpEvents(-1);
     }

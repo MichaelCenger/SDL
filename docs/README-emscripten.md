@@ -101,9 +101,9 @@ don't want any shutdown code that might be sitting below this code
 to actually run if main() were to continue on, since we're just
 getting started.
 
-Another option is to use SDL' main callbacks, which handle this for you
+Another option is to use SDL's main callbacks, which handle this for you
 without platform-specific code in your app. Please refer to
-[the wiki](https://wiki.libsdl.org/SDL3/README/main-functions#main-callbacks-in-sdl3)
+[the wiki](https://wiki.libsdl.org/SDL3/README-main-functions#main-callbacks-in-sdl3)
 or `docs/README-main-functions.md` in the SDL source code.
 
 
@@ -208,6 +208,21 @@ Calling SDL_RenderPresent (or SDL_GL_SwapWindow) will not actually
 present anything on the screen until your return from your mainloop
 function.
 
+Note that on other platforms, SDL will default to vsync _off_ in the 2D render
+API. Since changing this will affect how the mainloop runs, the 2D render API
+will only change vsync settings if explicitly requested by the app, either
+with SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER, or calling
+SDL_SetRenderVSync(). Otherwise it will default to whatever the Emscripten
+mainloop is set to use via emscripten_set_main_loop().
+
+If you're using the SDL main callbacks, the mainloop defaults to using
+requestAnimationFrame (effectively vsync), because it calls
+emscripten_set_main_loop() with a zero fps. This is almost certainly what you
+want to do! Do this even if you aren't using the main callbacks!
+SDL will attempt to accomodate the app if it messes with vsync settings, or
+doesn't use requestAnimationFrame, but modern thinking is that this is the
+most efficient, consistent, and correct way to run a game in a web browser.
+
 
 ## Building SDL/emscripten
 
@@ -230,7 +245,7 @@ tools.
 mkdir build
 cd build
 emcmake cmake ..
-# you can also do `emcmake cmake -G Ninja ..` and then use `ninja` instead of this command.
+# you can also try `emcmake cmake -G Ninja ..` and then use `ninja` instead of this command.
 emmake make -j4
 ```
 
@@ -239,13 +254,13 @@ If you want to build with thread support, something like this works:
 ```bash
 mkdir build
 cd build
-emcmake cmake -DSDL_THREADS=On ..
+emcmake cmake -DSDL_PTHREADS=ON ..
 # you can also do `emcmake cmake -G Ninja ..` and then use `ninja` instead of this command.
 emmake make -j4
 ```
 
-To build the tests, add `-DSDL_TESTS=On` to the `emcmake cmake` command line.
-To build the examples, add `-DSDL_EXAMPLES=On` to the `emcmake cmake` command line.
+To build the tests, add `-DSDL_TESTS=ON` to the `emcmake cmake` command line.
+To build the examples, add `-DSDL_EXAMPLES=ON` to the `emcmake cmake` command line.
 
 
 ## Building your app
